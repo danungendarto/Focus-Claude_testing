@@ -34,8 +34,8 @@ export const KNOWN_ISSUES: KnownIssue[] = [
     summary:
       'Focus API endpoints return HTTP 404 with a plain-text body (e.g. "No Optimise Rules ' +
       'found.") when a filter combination matches no data, instead of 200 with an empty ' +
-      'array. Confirmed on /api/OptimiserRule, /api/AboveBelowForecast, /api/Blacklist and ' +
-      '/api/Recommendations. Consequences: a console error on ordinary empty-result page ' +
+      'array. Confirmed on /api/OptimiserRule, /api/AboveBelowForecast, /api/Blacklist, ' +
+      '/api/Recommendations and /api/BookingDiscountPace. Consequences: a console error on ordinary empty-result page ' +
       'loads, "not found" indistinguishable from "no rows", and false alarms in any ' +
       'monitoring that watches 4xx rates.',
     // Scoped to /api/ 404s so a genuine missing route elsewhere still fails.
@@ -86,6 +86,35 @@ export const KNOWN_ISSUES: KnownIssue[] = [
       'A non-numeric channelId is correctly rejected with 400, so the input path is only ' +
       'half-validated.',
     // Deliberately NOT suppressed: a 500 must always fail a test.
+  },
+  {
+    id: 'FOCUS-KI-006',
+    severity: 'high',
+    summary:
+      '/api/InventoryBookingPace returns HTTP 500 with an HTML error page unless itemDate is ' +
+      'a parseable date. Empty, absent and malformed all crash it -- and the EMPTY STRING is ' +
+      'the documented default of the shared report query contract that every Focus page ' +
+      'sends, so the ordinary call shape is the crashing one. itemDate has no validation at ' +
+      'all, while sibling parameters on the same endpoint do: a malformed summaryType is ' +
+      'correctly rejected with 400 problem+json, and a valid itemDate with no data correctly ' +
+      'returns 404 problem+json. Same half-validated shape as FOCUS-KI-003.',
+    // Deliberately NOT suppressed: a 500 must always fail a test.
+  },
+  {
+    id: 'FOCUS-KI-007',
+    severity: 'high',
+    summary:
+      'Availability is reported inconsistently for the same inventory. For channel 7 / ' +
+      'Sydney / week 2026-06-21 / 0600-2359, /api/ProgramInventory reports 30105 seconds ' +
+      'available while /api/Recommendations and /api/BookingPaceSummary both report 24255 -- ' +
+      'a 24% gap -- even though capacity, paid and bonus agree row-for-row across all 99 ' +
+      'rows. Within a single /api/Recommendations response the four duration fields fail to ' +
+      'reconcile on 15 of 99 rows: capacityDuration !== paidDuration + bonusDuration + ' +
+      'availabilityDuration. The shortfall equals totalGrid on 12 rows, is ignored on 20 ' +
+      'rows that also carry grid inventory, and is partial on 3 -- so it is not a consistent ' +
+      'definitional difference. Availability drives what the optimiser believes it can sell.',
+    // Not suppressed: it produces no console error. The page renders perfectly
+    // and the number is wrong, which is the failure mode that matters most here.
   },
 ];
 

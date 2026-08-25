@@ -46,6 +46,7 @@ on jQuery's active-request count plus Focus's `#is-loading` flag.
 **Assert on widget state.** `readGrid`/`readGridRows` read the Kendo datasource.
 Rendered rows are virtualised and misreport totals.
 
+
 **Kendo hides the original `<input>`** for ComboBox, DropDownList and
 DropDownTree. Use `kendoWrapper` / `kendoVisibleInput`, which resolve the nearest
 `k-input`/`k-picker` ancestor generically. Don't hard-code widget class names.
@@ -111,11 +112,29 @@ is read-only and checks it. Never call the write paths to "test" the integration
 
 ## Current state
 
-- 73 specs passing, 0 skipped, ~100s. Nothing writes to the server.
-- 5 open defects registered: KI-001 (empty results as 404), KI-002 (duplicate
+- 88 specs in the default project. Nothing in it writes to the server.
+- **The suite is not reliably green at 4 workers.** Roughly one UI spec per full
+  run fails on a Kendo popup animation race: `selectDropDownList` clicks a
+  `li.k-list-item` while the `.k-animation-container` is still sliding, and a
+  sibling item intercepts the click. A different spec fails each run and every
+  one passes in isolation, so it is the helper, not the specs. `retries` is 0
+  locally. This pre-dates the EX-01 session (reproduced with those specs
+  excluded) and is the next thing worth fixing in the suite itself.
+- 7 open defects registered: KI-001 (empty results as 404), KI-002 (duplicate
   fetch on load), KI-003 (500 on unknown channelId), KI-004 (Recommendations
   shows an empty grid by default), KI-005 (Re-Optimise headroom safeguard is
-  dead code from a property-name casing mismatch — the most serious).
-- 12 exploratory charters written; EX-00 (reconnaissance) is done.
-- Destructive specs exist as gated skeletons; several are `fixme` pending
-  charter EX-07.
+  dead code from a property-name casing mismatch), KI-006 (InventoryBookingPace
+  500s unless `itemDate` parses — including the contract default `itemDate=`),
+  KI-007 (Inventory Summary and Recommendations disagree by 24% on available
+  inventory). KI-005 and KI-007 are the two worth raising first: both are
+  silent, and both affect what the optimiser prices.
+- 14 exploratory charters (EX-00 … EX-13). EX-00 and EX-01 are done, EX-04 is
+  answered and closed, EX-07 is mostly answered. EX-13 (same booked volume,
+  11–15% different revenue between two reports) came out of EX-01 and is a
+  product question, not yet a defect.
+- Duration fields are **seconds**, not spot counts. `averageNet` is revenue over
+  30-second-equivalent spots (`paid / 30`) — EX-04, verified on 601 rows.
+- Destructive specs are gated. `reoptimise.spec.ts` is verified end-to-end —
+  baseline via the API, run, then diff both in and out of scope. Three writes in
+  `write-operations.spec.ts` are still `fixme`: bulk override, optimiser-rule
+  create/delete, and sending recommendations.

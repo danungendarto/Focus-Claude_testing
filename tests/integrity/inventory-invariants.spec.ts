@@ -10,7 +10,11 @@ import { test, expect } from '../../src/fixtures';
  *
  * Where a rule could not be confirmed against the live data it is written as an
  * explicit open question rather than a guessed assertion -- see
- * docs/exploratory-charters.md, charter EX-04.
+ * docs/exploratory-charters.md.
+ *
+ * The duration fields are SECONDS, not spot counts: charter EX-04 established
+ * that averageNet is revenue over 30-second-equivalent spots (paid / 30).
+ * Confirmed on 601 rows across 7 week/market/channel scopes with no exceptions.
  */
 
 interface InventoryRow {
@@ -25,7 +29,12 @@ interface InventoryRow {
   availablePercent: number;
   paidNetRevenue: number;
   paidBaseRevenue: number;
+  averageNet: number;
+  averageBase: number;
 }
+
+/** Focus counts inventory in seconds and prices it per 30-second spot. */
+const SPOT_SECONDS = 30;
 
 /** Ratios are floating point; compare with tolerance, not equality. */
 const TOLERANCE = 1e-6;
@@ -110,6 +119,24 @@ test.describe('@integrity inventory arithmetic', () => {
         row.paidNetRevenue,
         `row "${row.summaryBy}": net revenue exceeds base revenue, which implies a negative discount`,
       ).toBeLessThanOrEqual(row.paidBaseRevenue + TOLERANCE);
+    }
+  });
+
+  test('average rates are revenue over 30-second-equivalent spots', async () => {
+    // EX-04, answered 25 Aug 2026. The divisor is NOT the paid spot count:
+    // paid is a DURATION IN SECONDS, and the average is per 30-second spot.
+    // Corroborated by /api/Recommendations, which names the same fields
+    // capacityDuration / paidDuration / bonusDuration / availabilityDuration.
+    for (const row of rows) {
+      if (row.paid === 0) continue; // nothing sold, nothing to average
+
+      const spots = row.paid / SPOT_SECONDS;
+
+      expect(row.averageNet, `row "${row.summaryBy}": averageNet should be paidNetRevenue / (paid / 30)`)
+        .toBeCloseTo(row.paidNetRevenue / spots, 2);
+
+      expect(row.averageBase, `row "${row.summaryBy}": averageBase should be paidBaseRevenue / (paid / 30)`)
+        .toBeCloseTo(row.paidBaseRevenue / spots, 2);
     }
   });
 
