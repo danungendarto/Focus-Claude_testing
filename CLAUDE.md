@@ -46,6 +46,14 @@ on jQuery's active-request count plus Focus's `#is-loading` flag.
 **Assert on widget state.** `readGrid`/`readGridRows` read the Kendo datasource.
 Rendered rows are virtualised and misreport totals.
 
+**Two waits that look redundant and are not.** `waitForGrid` requires idle to
+*hold* for several consecutive samples, not just to be true once: after a filter
+change there is a gap before the request goes out (widened by KI-002, which
+aborts the first request and re-sends it), and a single sample lands in that gap
+and reads an empty grid. Likewise every popup click goes through
+`waitForPopupSettled` — Kendo slides its popups open, and a click during the
+slide lands on a neighbouring option, selecting the wrong one. Don’t "simplify"
+either of these back to a single check.
 
 **Kendo hides the original `<input>`** for ComboBox, DropDownList and
 DropDownTree. Use `kendoWrapper` / `kendoVisibleInput`, which resolve the nearest
@@ -113,13 +121,12 @@ is read-only and checks it. Never call the write paths to "test" the integration
 ## Current state
 
 - 88 specs in the default project. Nothing in it writes to the server.
-- **The suite is not reliably green at 4 workers.** Roughly one UI spec per full
-  run fails on a Kendo popup animation race: `selectDropDownList` clicks a
-  `li.k-list-item` while the `.k-animation-container` is still sliding, and a
-  sibling item intercepts the click. A different spec fails each run and every
-  one passes in isolation, so it is the helper, not the specs. `retries` is 0
-  locally. This pre-dates the EX-01 session (reproduced with those specs
-  excluded) and is the next thing worth fixing in the suite itself.
+- Stable at 4 workers as of 25 Aug 2026: 3 consecutive clean full runs plus two
+  `--repeat-each=3` stress runs over the report specs, ~380 spec executions with
+  no flake. Two separate races were fixed in `src/kendo/kendo.ts`: popup clicks
+  now wait for the slide animation to finish and are scoped to the widget’s own
+  popup, and `waitForGrid` requires idle to hold rather than sampling it once.
+  Cost is roughly +10s on a full run.
 - 7 open defects registered: KI-001 (empty results as 404), KI-002 (duplicate
   fetch on load), KI-003 (500 on unknown channelId), KI-004 (Recommendations
   shows an empty grid by default), KI-005 (Re-Optimise headroom safeguard is

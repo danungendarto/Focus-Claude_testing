@@ -133,18 +133,39 @@ export async function readGridRows<T = Record<string, unknown>>(
 }
 
 /** Waits for a grid to exist and finish its current fetch. */
+/** How many consecutive idle samples, 100ms apart, count as "the grid settled". */
+const IDLE_SAMPLES_REQUIRED = 4;
+
 export async function waitForGrid(page: Page, gridId: string, timeout = 30_000): Promise<void> {
   await page.locator('#' + gridId).waitFor({ state: 'attached', timeout });
+
+  // Reset the streak counter this call shares with the poller below.
+  await page.evaluate(() => { (window as any).__focusGridIdleStreak = 0; });
+
+  // Sampling "jQuery.active === 0" ONCE is not enough. Focus re-fetches a grid
+  // when a filter changes, and there is a gap between the change event and the
+  // request actually going out -- widened by FOCUS-KI-002, which aborts the
+  // first request and immediately re-sends it. A single sample lands in that
+  // gap, sees no active requests, and reads a grid whose data is still in
+  // flight: the caller then asserts on a total of 0. Require idle to HOLD.
   await page.waitForFunction(
-    (id) => {
-      const jq = (window as any).jQuery;
-      const grid = jq('#' + id).data('kendoGrid');
-      return !!grid && !grid.dataSource.options?.__loading;
+    ([id, required]) => {
+      const w = window as any;
+      const jq = w.jQuery;
+      const grid = jq && jq('#' + id).data('kendoGrid');
+      if (!grid) return false;
+
+      const idle =
+        jq.active === 0 &&
+        !grid.dataSource.options?.__loading &&
+        document.querySelector<HTMLInputElement>('#is-loading')?.value !== 'true';
+
+      w.__focusGridIdleStreak = idle ? (w.__focusGridIdleStreak ?? 0) + 1 : 0;
+      return w.__focusGridIdleStreak >= (required as number);
     },
-    gridId,
-    { timeout },
+    [gridId, IDLE_SAMPLES_REQUIRED] as const,
+    { timeout, polling: 100 },
   );
-  await waitForAjaxIdle(page, timeout);
 }
 
 /**
@@ -190,6 +211,87 @@ function escapeRegExp(text: string): string {
 }
 
 /* ------------------------------------------------------------------ *
+ * Popups
+ * ------------------------------------------------------------------ */
+
+/**
+ * Locates the popup content belonging to ONE widget.
+ *
+ * `.k-animation-container:visible` plus `.last()` is a guess: it takes whichever
+ * popup happens to be last in the DOM, which during an open/close overlap is the
+ * wrong one. Kendo gives each popup a uniquely identified content element --
+ * `<inputId>_listbox` on the list widgets, a generated GUID on the treeview for
+ * the tree widgets -- so ask the widget instead of guessing.
+ *
+ * Matched with an attribute selector rather than `#id`, because the tree ids are
+ * GUIDs and a GUID beginning with a digit is not a valid CSS id selector.
+ */
+async function popupContentFor(page: Page, inputId: string): Promise<Locator> {
+  const contentId = await page.evaluate((id) => {
+    const jq = (window as any).jQuery;
+    const $el = jq('#' + id);
+    const kinds = [
+      'kendoDropDownList', 'kendoComboBox', 'kendoDropDownTree', 'kendoMultiSelectTree',
+    ];
+
+    for (const kind of kinds) {
+      const w = $el.data(kind);
+      if (!w) continue;
+      const list = w.ul && w.ul[0];
+      if (list && list.id) return String(list.id);
+      const tree = w.treeview && w.treeview.element && w.treeview.element[0];
+      if (tree && tree.id) return String(tree.id);
+    }
+    return null;
+  }, inputId);
+
+  // Fall back to the old selector rather than throwing: a widget type we have
+  // not met yet should degrade to the previous behaviour, not break the suite.
+  return contentId
+    ? page.locator(`[id="${contentId}"]`)
+    : page.locator(ANIMATION_CONTAINER).last();
+}
+
+/**
+ * Waits for a Kendo popup to stop moving before anything inside it is clicked.
+ *
+ * Kendo slides its popups open, and Playwright's actionability check is not
+ * enough on its own: it resolves a list item, the popup keeps sliding, and the
+ * click lands on whichever sibling has moved under the pointer. That selects the
+ * WRONG OPTION and closes the popup, so the retry then fails with "element is
+ * not visible" -- which is exactly what the intermittent failures looked like.
+ *
+ * Two consecutive identical frames are not enough; a slide can pause on a
+ * sub-pixel boundary. Three is.
+ */
+async function waitForPopupSettled(popup: Locator, timeout = 10_000): Promise<void> {
+  await popup.waitFor({ state: 'visible', timeout });
+  await popup.evaluate(
+    (el, budget) =>
+      new Promise<void>((resolve, reject) => {
+        const deadline = performance.now() + budget;
+        let previous = '';
+        let stableFrames = 0;
+
+        const measure = () => {
+          const { top, left, width, height } = el.getBoundingClientRect();
+          const current = `${top},${left},${width},${height}`;
+          stableFrames = current === previous ? stableFrames + 1 : 0;
+          previous = current;
+
+          if (stableFrames >= 3) return resolve();
+          if (performance.now() > deadline) {
+            return reject(new Error('Kendo popup never stopped animating'));
+          }
+          requestAnimationFrame(measure);
+        };
+        requestAnimationFrame(measure);
+      }),
+    timeout,
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * DropDownTree (Channel / Market / Day-of-week multi-pickers)
  * ------------------------------------------------------------------ */
 
@@ -206,7 +308,7 @@ export async function selectInDropDownTree(
   labels: string[],
 ): Promise<void> {
   await openDropDownTree(page, inputId);
-  const popup = page.locator(ANIMATION_CONTAINER).last();
+  const popup = await popupContentFor(page, inputId);
 
   for (const label of labels) {
     const node = popup.locator('.k-treeview-leaf, .k-in', { hasText: label }).first();
@@ -227,7 +329,7 @@ export async function openDropDownTree(page: Page, inputId: string): Promise<voi
   // Focus renders these as k-multiselecttree; the whole wrapper is the picker,
   // and the arrow button is not always present, so click the wrapper itself.
   await kendoWrapper(page, inputId).click();
-  await page.locator(ANIMATION_CONTAINER).last().waitFor({ state: 'visible' });
+  await waitForPopupSettled(await popupContentFor(page, inputId));
 }
 
 export async function closeDropDownTree(page: Page, inputId: string): Promise<void> {
@@ -305,9 +407,22 @@ export async function readComboBox(page: Page, inputId: string): Promise<string>
 export async function selectDropDownList(page: Page, inputId: string, text: string): Promise<void> {
   // A DropDownList has no inner text box; the wrapper span is the control.
   await kendoWrapper(page, inputId).click();
-  const popup = page.locator(ANIMATION_CONTAINER).last();
-  await popup.locator('li.k-list-item', { hasText: text }).first().click();
+
+  const popup = await popupContentFor(page, inputId);
+  await waitForPopupSettled(popup);
+
+  // Kendo gives list items role="option", so match the whole accessible name.
+  // The old substring match meant "Day" also matched "Day of Week".
+  await popup.getByRole('option', { name: text, exact: true }).first().click();
   await waitForAjaxIdle(page);
+
+  // A click that lands on a neighbouring option still closes the popup and so
+  // still looks like success. Without this check it surfaces much later, as an
+  // unrelated assertion failing on data that was filtered the wrong way.
+  expect(
+    await readDropDownList(page, inputId),
+    `#${inputId}: the option that was clicked is not the one the widget holds`,
+  ).toBe(text);
 }
 
 /** The options a DropDownList currently offers, in order. */
