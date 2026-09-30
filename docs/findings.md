@@ -15,12 +15,13 @@ Replace the `FOCUS-KI-*` ids with real ticket numbers once these are raised.
 | [KI-005](#focus-ki-005--re-optimise-headroom-check-is-unreachable-property-name-casing) | 🔴 high | Re-Optimise headroom safeguard is dead code — client reads `IsBudgetEnabled`, API sends `isBudgetEnabled` | `/ReOptimise` |
 | [KI-003](#focus-ki-003--unknown-channelid-returns-a-500-with-an-html-error-page) | 🔴 high | Unknown `channelId` returns 500 with an HTML error page from a JSON endpoint | report APIs |
 | [KI-007](#focus-ki-007--the-same-inventory-has-two-different-availability-figures) | 🔴 high | Inventory Summary says 30,105 available; Recommendations and Booking Pace say 24,255 | cross-report |
+| [KI-008](#focus-ki-008--report-grids-show-the-last-response-to-arrive-not-the-current-filters) | 🔴 high | Change filters quickly and the grid can show figures for an earlier filter state | report pages |
 | [KI-006](#focus-ki-006--inventorybookingpace-500s-unless-itemdate-is-a-valid-date) | 🔴 high | `/api/InventoryBookingPace` 500s for the default query shape — `itemDate` is unvalidated | `/api/InventoryBookingPace` |
 | [KI-001](#focus-ki-001--empty-result-sets-are-returned-as-http-404) | 🟠 med | Empty result sets returned as 404 with plain text, not 200 `[]` | several APIs |
 | [KI-004](#focus-ki-004--recommendations-shows-an-empty-grid-by-default-hiding-real-data) | 🟠 med | Recommendations shows an empty grid by default, hiding 99 real rows | `/Recommendations` |
 | [KI-002](#focus-ki-002--report-pages-fetch-their-data-twice-on-load) | 🟡 low | Report pages fetch their data twice on load | all reports |
 
-Three of these are **silent** — KI-005, KI-004 and KI-007 produce no error a
+Four of these are **silent** — KI-005, KI-004, KI-007 and KI-008 produce no error a
 user would notice. KI-007 is the worst of that kind: the page renders perfectly
 and the availability figure is wrong.
 
@@ -318,6 +319,53 @@ curl -s -o /dev/null -w "%{http_code} %{content_type}\n" "http://vst-focus-seven
 matching how `summaryType` is already handled on the same endpoint.
 
 **Covered by:** `tests/known-issues/cross-report-consistency.spec.ts`
+
+---
+
+## FOCUS-KI-008 · Report grids show the last response to arrive, not the current filters
+
+**Severity: high** · observed on `/BookingPaceSummary`, found 1 Oct 2026 while
+capturing a benchmark. The request pattern is shared, so likely all report pages.
+
+Every filter change fires its own `/api/BookingPaceSummary` request straight
+away. Earlier requests are not cancelled, and their responses are not discarded
+when they come back, so **the grid shows whichever response arrives last**. A
+slow query for an intermediate filter state beats the fast query for the final
+one.
+
+What was observed, setting the filters one after another as a user would:
+
+| Sent (order) | Scope of the request | Arrived |
+|---|---|---|
+| 1 | Metro, **17/05 – 03/10**, 1800–2230, every day | **last** |
+| 2 | Metro, 17/05 – 23/05, 1800–2230, every day | 2nd |
+| 3 | Metro, 17/05 – 23/05, 0600–1000, every day | 3rd |
+| 4 | Metro, 17/05 – 23/05, 0600–1000, **weekdays** — what is on screen | 4th |
+
+Request 1 spans 20 weeks, so it is slow. It landed last and the grid showed its
+48 rows under filters that say one week, 0600–1000, weekdays. No error, no
+loading indicator. A planner reading that screen reads figures for a different
+scope.
+
+Two things widen the window:
+
+- Ticking one market group (`Metro`) fires **five identical requests**, one per
+  node the tree checks. Same family as KI-002.
+- These are plain XHRs. They do not go through jQuery and do not set
+  `#is-loading`, so the page has no in-flight state that could guard the grid.
+
+**To reproduce by hand:** open Booking Pace Summary, then without pausing set
+Week Start 17/05/2026, Week End 23/05/2026, Start Time 0600, End Time 1000.
+Watch the Network tab: the grid ends up matching whichever response finished
+last, which is not always the last request.
+
+**Expected:** only the response to the latest request is applied. Earlier ones
+are aborted, or ignored on arrival.
+
+**Covered by:** `tests/known-issues/report-filter-race.spec.ts`, which holds the
+stale request back with `page.route` so the race reproduces every time.
+Worked around in `tests/benchmarks/` by letting each filter change settle
+before the next.
 
 ---
 

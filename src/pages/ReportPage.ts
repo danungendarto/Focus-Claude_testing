@@ -108,6 +108,14 @@ export class ReportPage extends BasePage {
     await setDropDownTreeValue(this.page, this.id('filter-MultiStation'), ids);
   }
 
+  /**
+   * Arrange-only shortcut for the Day of Week tree. Values are the day bits
+   * (Monday 1 ... Sunday 64); the page ORs them into `dayOfWeekId`.
+   */
+  async setDayMask(bits: number[]): Promise<void> {
+    await setDropDownTreeValue(this.page, this.id('filter-DayOfWeekMulti'), bits);
+  }
+
   async selectedChannelValue(): Promise<unknown> {
     return readDropDownTreeValue(this.page, this.id('filter-MultiChannel'));
   }

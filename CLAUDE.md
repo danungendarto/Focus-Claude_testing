@@ -122,21 +122,29 @@ is read-only and checks it. Never call the write paths to "test" the integration
 
 ## Current state
 
-- 88 specs in the default project. Nothing in it writes to the server.
+- 91 specs in the default project. Nothing in it writes to the server.
 - Stable at 4 workers as of 25 Aug 2026: 3 consecutive clean full runs plus two
   `--repeat-each=3` stress runs over the report specs, ~380 spec executions with
   no flake. Two separate races were fixed in `src/kendo/kendo.ts`: popup clicks
   now wait for the slide animation to finish and are scoped to the widget’s own
   popup, and `waitForGrid` requires idle to hold rather than sampling it once.
   Cost is roughly +10s on a full run.
-- 7 open defects registered: KI-001 (empty results as 404), KI-002 (duplicate
+- 8 open defects registered: KI-001 (empty results as 404), KI-002 (duplicate
   fetch on load), KI-003 (500 on unknown channelId), KI-004 (Recommendations
   shows an empty grid by default), KI-005 (Re-Optimise headroom safeguard is
   dead code from a property-name casing mismatch), KI-006 (InventoryBookingPace
   500s unless `itemDate` parses — including the contract default `itemDate=`),
   KI-007 (Inventory Summary and Recommendations disagree by 24% on available
-  inventory). KI-005 and KI-007 are the two worth raising first: both are
+  inventory), KI-008 (report grids show whichever response arrives last, so
+  quick filter changes can leave figures for an earlier filter state on
+  screen). KI-005 and KI-007 are the two worth raising first: both are
   silent, and both affect what the optimiser prices.
+- One benchmark: Booking Pace Summary, Channel 7 / Metro / 17–23 May 2026 /
+  0600–1000 / weekdays. See `docs/benchmarks.md`. Re-baseline only on purpose
+  (`npm run benchmark:update`); check the recorded data vintage first.
+- Report-page grid fetches are plain XHRs: `jQuery.active` and `#is-loading`
+  do not see them. When a test depends on which response landed, use
+  `InflightRequests` from `src/network.ts`.
 - 14 exploratory charters (EX-00 … EX-13). EX-00 and EX-01 are done, EX-04 is
   answered and closed, EX-07 is mostly answered. EX-13 (same booked volume,
   11–15% different revenue between two reports) came out of EX-01 and is a

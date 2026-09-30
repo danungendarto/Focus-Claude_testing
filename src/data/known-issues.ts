@@ -116,6 +116,18 @@ export const KNOWN_ISSUES: KnownIssue[] = [
     // Not suppressed: it produces no console error. The page renders perfectly
     // and the number is wrong, which is the failure mode that matters most here.
   },
+  {
+    id: 'FOCUS-KI-008',
+    severity: 'high',
+    summary:
+      'Report grids show whichever response arrives last, not the one for the filters on ' +
+      'screen. Each filter change fires its own request and earlier ones are neither ' +
+      'cancelled nor ignored, so a slow stale response overwrites the current one. Seen on ' +
+      'Booking Pace Summary: filters read Metro / 17-23 May / 0600-1000 / weekdays while the ' +
+      'grid held 48 rows for 17 May-3 Oct / 1800-2230 / every day. Ticking one market group ' +
+      'also fires five identical requests, widening the window.',
+    // Not suppressed: no console error. The figures are simply for another scope.
+  },
 ];
 
 /** Splits diagnostic lines into genuinely new problems and suppressed ones. */
