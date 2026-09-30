@@ -3,6 +3,10 @@
 Everything in this folder changes server state. None of it runs in the default
 suite.
 
+> **The full write-surface map — including the two writes with no visible
+> trigger — lives in [`docs/write-surface.md`](../../docs/write-surface.md).**
+> Read that first; this file covers only how to run these specs.
+
 ## What "destructive" means here
 
 | Spec area | What it writes |
@@ -44,6 +48,13 @@ other and with anyone else using the box.
 - Tag the test `@destructive` in its title.
 - Call `requireDestructiveOptIn()` at the top of the spec.
 - Prefer the narrowest scope that still exercises the feature: one channel, one
-  market, one day — not "all".
-- Assert on the *outcome* (the job completed, the flag changed), not just that
-  the button was clickable.
+  market, one day — not "all". The verified re-optimise run touched exactly two
+  recommendations.
+- **Capture a baseline via the API first**, then act, then diff. Without a
+  baseline the only available assertion is "it did not crash".
+- **Assert the negative too** — that things outside the scope did *not* change.
+  A write that quietly widens its blast radius is the serious failure, and the
+  UI will not reveal it. `reoptimise.spec.ts` is the worked example.
+- Do not assert that values changed. A re-optimise that changes nothing is still
+  a successful run; assert the run *happened* (new `runId`, advanced timestamp)
+  rather than that it had an effect.

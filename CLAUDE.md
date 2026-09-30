@@ -6,6 +6,8 @@ The user is a tester.
 
 Read `docs/app-map.md` before doing anything non-trivial — it is the reference
 for routes, widget types, the API query contract, and this environment's data.
+Read `docs/write-surface.md` before clicking or calling anything you have not
+already established is read-only.
 
 ## Safety rules — these matter more than anything else here
 
