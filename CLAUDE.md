@@ -122,7 +122,7 @@ is read-only and checks it. Never call the write paths to "test" the integration
 
 ## Current state
 
-- 91 specs in the default project. Nothing in it writes to the server.
+- 94 specs in the default project. Nothing in it writes to the server.
 - Stable at 4 workers as of 25 Aug 2026: 3 consecutive clean full runs plus two
   `--repeat-each=3` stress runs over the report specs, ~380 spec executions with
   no flake. Two separate races were fixed in `src/kendo/kendo.ts`: popup clicks
@@ -139,16 +139,20 @@ is read-only and checks it. Never call the write paths to "test" the integration
   quick filter changes can leave figures for an earlier filter state on
   screen). KI-005 and KI-007 are the two worth raising first: both are
   silent, and both affect what the optimiser prices.
-- One benchmark: Booking Pace Summary, Channel 7 / Metro / 17–23 May 2026 /
-  0600–1000 / weekdays. See `docs/benchmarks.md`. Re-baseline only on purpose
+- Two benchmarks: Booking Pace Summary (Channel 7 / Metro / 17–23 May 2026 /
+  0600–1000 / weekdays) and Program vs. Forecast (Channel 7 / SYD / week
+  08/03/2026 / Monday / 1800: Seven News vs 7MAIN: 1800 NEWS). See
+  `docs/benchmarks.md`. Re-baseline only on purpose
   (`npm run benchmark:update`); check the recorded data vintage first.
 - Report-page grid fetches are plain XHRs: `jQuery.active` and `#is-loading`
   do not see them. When a test depends on which response landed, use
   `InflightRequests` from `src/network.ts`.
-- 14 exploratory charters (EX-00 … EX-13). EX-00 and EX-01 are done, EX-04 is
+- 15 exploratory charters (EX-00 … EX-14). EX-00 and EX-01 are done, EX-04 is
   answered and closed, EX-07 is mostly answered. EX-13 (same booked volume,
   11–15% different revenue between two reports) came out of EX-01 and is a
-  product question, not yet a defect.
+  product question, not yet a defect. EX-14 (forecast fill above 100%, paid
+  fill missing in the last two weeks) came out of the Program vs. Forecast
+  benchmark.
 - Duration fields are **seconds**, not spot counts. `averageNet` is revenue over
   30-second-equivalent spots (`paid / 30`) — EX-04, verified on 601 rows.
 - Destructive specs are gated. `reoptimise.spec.ts` is verified end-to-end —

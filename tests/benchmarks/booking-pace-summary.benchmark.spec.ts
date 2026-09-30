@@ -1,9 +1,9 @@
-import { type APIRequestContext } from '@playwright/test';
 import { test, expect } from '../../src/fixtures';
 import { READ_API, ROUTES, dayMask, defaultReportQuery } from '../../src/data/focus';
 import {
-  type BenchmarkBaseline, type CompareOptions,
+  type CompareOptions,
   diffRows, pick, readBaseline, writeBaseline, shouldWriteBaseline, baselinePath,
+  qs, readDataVintage, explainDiff,
 } from '../../src/benchmarks/benchmark';
 import { InflightRequests } from '../../src/network';
 
@@ -76,39 +76,6 @@ const COMPARE: CompareOptions<PaceRow> = {
 };
 const FIELDS: Array<keyof PaceRow & string> = ['formattedDate', ...COMPARE.exact, ...COMPARE.approx!];
 
-function qs(query: Record<string, unknown>): string {
-  return Object.entries(query)
-    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
-    .join('&');
-}
-
-/** Footer metadata from the server-rendered page, so the API test needs no browser. */
-async function readDataVintage(request: APIRequestContext): Promise<Record<string, string>> {
-  const html = await (await request.get(ROUTES.bookingPaceSummary)).text();
-  const text = (html.match(/<footer[\s\S]*?<\/footer>/)?.[0] ?? '')
-    .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&copy;/g, '').replace(/\s+/g, ' ');
-  const grab = (re: RegExp) => text.match(re)?.[1]?.trim() ?? '';
-  return {
-    latestSnapshot: grab(/Latest snapshot:\s*(\S+)/),
-    importedOn: grab(/Imported on:\s*(\S+)/),
-    lastFullOptimise: grab(/Last full re-optimise:\s*(\S+ \S+)/),
-    version: grab(/Version\s*(\S+)/),
-  };
-}
-
-/** Turns a diff into a failure message that says whether the data moved underneath. */
-function explain(diffs: string[], baseline: BenchmarkBaseline<PaceRow>, vintage?: Record<string, string>): string {
-  const lines = [`${diffs.length} difference(s) from benchmark ${baseline.name} (captured ${baseline.capturedAt})`];
-  if (vintage) {
-    for (const k of ['latestSnapshot', 'importedOn', 'version'] as const) {
-      if (baseline.dataVintage[k] !== vintage[k]) {
-        lines.push(`  NOTE: ${k} changed ${baseline.dataVintage[k]} -> ${vintage[k]} -- data or build changed since capture`);
-      }
-    }
-  }
-  return lines.join('\n');
-}
-
 test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0600-1000 / weekdays', () => {
   // The API test is the only one that writes a baseline; the UI test must run
   // after it so that a re-baseline is compared against the fresh file.
@@ -120,7 +87,7 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
     const actual = pick((await res.json()) as PaceRow[], FIELDS);
     expect(actual.length, 'the benchmark scope should not be empty').toBeGreaterThan(0);
 
-    const vintage = await readDataVintage(request);
+    const vintage = await readDataVintage(request, ROUTES.bookingPaceSummary);
     const baseline = readBaseline<PaceRow>(NAME);
 
     if (shouldWriteBaseline(testInfo, !!baseline)) {
@@ -142,7 +109,7 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
       body: JSON.stringify(actual, null, 2), contentType: 'application/json',
     });
     const diffs = diffRows(baseline!.rows, actual, COMPARE);
-    expect(diffs, explain(diffs, baseline!, vintage)).toEqual([]);
+    expect(diffs, explainDiff(diffs, baseline!, vintage)).toEqual([]);
   });
 
   test('the page, driven through its filters, shows the benchmark figures', async ({
@@ -191,9 +158,9 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
       body: JSON.stringify(actual, null, 2), contentType: 'application/json',
     });
 
-    const vintage = await readDataVintage(page.request);
+    const vintage = await readDataVintage(page.request, ROUTES.bookingPaceSummary);
     const diffs = diffRows(baseline!.rows, actual, COMPARE);
-    expect(diffs, explain(diffs, baseline!, vintage)).toEqual([]);
+    expect(diffs, explainDiff(diffs, baseline!, vintage)).toEqual([]);
 
     await bookingPaceSummary.expectNoErrors();
     diagnostics.expectClean();

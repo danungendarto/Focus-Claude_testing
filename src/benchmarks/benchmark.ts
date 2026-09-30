@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { type TestInfo } from '@playwright/test';
+import { type APIRequestContext, type TestInfo } from '@playwright/test';
 
 /**
  * Benchmarks pin the exact figures a report produced for one fixed scope, so a
@@ -32,6 +32,11 @@ export interface BenchmarkBaseline<Row> {
   capturedAt: string;
   /** Footer metadata at capture time. If it has changed, suspect the data first. */
   dataVintage: Record<string, string>;
+  /**
+   * Optional non-row figures the report returns alongside its rows (e.g. the
+   * current forecast on Program vs. Forecast). Compared with toEqual.
+   */
+  header?: Record<string, unknown>;
   rows: Row[];
 }
 
@@ -63,6 +68,12 @@ export function diffRows<Row>(expected: Row[], actual: Row[], opts: CompareOptio
       if (exp[f] !== act[f]) diffs.push(`${k}: ${f} expected ${exp[f]}, got ${act[f]}`);
     }
     for (const f of opts.approx ?? []) {
+      // null means "no figure", which is not the same as 0 -- Number(null) is 0,
+      // so compare nullness first or a vanished figure passes as a zero one.
+      if (exp[f] == null || act[f] == null) {
+        if (exp[f] != act[f]) diffs.push(`${k}: ${f} expected ${exp[f]}, got ${act[f]}`);
+        continue;
+      }
       const e = Number(exp[f]);
       const a = Number(act[f]);
       if (!(Math.abs(e - a) <= tolerance)) diffs.push(`${k}: ${f} expected ${e}, got ${a}`);
@@ -105,4 +116,45 @@ export function shouldWriteBaseline(testInfo: TestInfo, exists: boolean): boolea
   const mode = testInfo.config.updateSnapshots;
   if (mode === 'all' || mode === 'changed') return true;
   return !exists && mode === 'missing';
+}
+
+/** `key=value&...`, in the order given, which is the order Focus sends them. */
+export function qs(query: Record<string, unknown>): string {
+  return Object.entries(query)
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join('&');
+}
+
+/**
+ * Footer metadata from a server-rendered page, so an API test needs no browser.
+ * Every Focus page carries the same footer; pass the report's own route.
+ */
+export async function readDataVintage(
+  request: APIRequestContext, route: string,
+): Promise<Record<string, string>> {
+  const html = await (await request.get(route)).text();
+  const text = (html.match(/<footer[\s\S]*?<\/footer>/)?.[0] ?? '')
+    .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&copy;/g, '').replace(/\s+/g, ' ');
+  const grab = (re: RegExp) => text.match(re)?.[1]?.trim() ?? '';
+  return {
+    latestSnapshot: grab(/Latest snapshot:\s*(\S+)/),
+    importedOn: grab(/Imported on:\s*(\S+)/),
+    lastFullOptimise: grab(/Last full re-optimise:\s*(\S+ \S+)/),
+    version: grab(/Version\s*(\S+)/),
+  };
+}
+
+/** Turns a diff into a failure message that says whether the data moved underneath. */
+export function explainDiff<Row>(
+  diffs: string[], baseline: BenchmarkBaseline<Row>, vintage?: Record<string, string>,
+): string {
+  const lines = [`${diffs.length} difference(s) from benchmark ${baseline.name} (captured ${baseline.capturedAt})`];
+  if (vintage) {
+    for (const k of ['latestSnapshot', 'importedOn', 'version'] as const) {
+      if (baseline.dataVintage[k] !== vintage[k]) {
+        lines.push(`  NOTE: ${k} changed ${baseline.dataVintage[k]} -> ${vintage[k]} -- data or build changed since capture`);
+      }
+    }
+  }
+  return lines.join('\n');
 }

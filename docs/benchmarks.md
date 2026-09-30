@@ -7,8 +7,9 @@ it does not claim the figures are *right*, only that they are *unchanged*.
 | Benchmark | Scope | Rows | Captured |
 |---|---|---|---|
 | `booking-pace-summary.ch7-metro.2026-05-17.weekdays.0600-1000` | Booking Pace Summary · Channel 7 · Metro · 17/05/2026–23/05/2026 · 0600–1000 · Mon–Fri | 28 | 1 Oct 2026, Focus 3.4.0.53, snapshot 18/05/2026 |
+| `program-vs-forecast.ch7-syd.2026-03-08.mon.1800-seven-news.vs-7main-1800-news` | Program vs. Forecast · Channel 7 · SYD · week 08/03/2026 · Monday · 1800: Seven News · compare with 7MAIN: 1800 NEWS | 53 | 1 Oct 2026, Focus 3.4.0.53, snapshot 18/05/2026 |
 
-Spec: `tests/benchmarks/booking-pace-summary.benchmark.spec.ts`.
+Specs: `tests/benchmarks/*.benchmark.spec.ts`.
 Baselines: `tests/benchmarks/baselines/*.json` (committed).
 
 ## Running
@@ -28,7 +29,13 @@ Each benchmark has two tests:
   the page is asking for something different or showing something different.
 
 Integer fields (capacity, paid, availability, revenue, programme count) must
-match exactly. Ratios (fill %, average discount) are compared to 1e-9.
+match exactly. Ratios (fill %, average discount) are compared to 1e-9. A `null`
+ratio only matches `null`: "no figure" and "zero" are different results.
+
+The Program vs. Forecast benchmark also pins the report's `currentForecast`
+header (description, modifier, program-specific flag), and has a third test:
+comparing the current forecast with itself, Program specific ticked, must give
+the identical curve.
 
 ## When one fails
 
@@ -60,6 +67,13 @@ then run it once to write the baseline. Two things learned the hard way:
 - **Market groups.** `Metro` (id 7) is a group header, and the API 404s it on its
   own. Ticking it in the UI sends `selectedStations=7,1,2,3,4,5`. Benchmark that
   query, not `stationId=7`.
+- **Program vs. Forecast has its own filter vocabulary.** Day of Week counts from
+  Sunday = 1 (Monday is `dayOfWeekId=2`), `endDate` is the following Sunday, and
+  the programme is sent as `selectedItemId`, a per-week id that a re-import may
+  renumber. The Program list reloads from `/api/program/` when week or day
+  changes, so settle on `/api/`, not only on the report endpoint, and pick the
+  day before the programme. Forecast names are stored with a double space
+  (`7MAIN:  1800 NEWS`); pass them verbatim.
 - **Let each filter change settle before the next** (`InflightRequests` in
   `src/network.ts`). Otherwise FOCUS-KI-008 can put a stale response in the grid
   and the benchmark fails for reasons unrelated to the figures.

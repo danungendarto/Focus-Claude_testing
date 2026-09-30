@@ -196,6 +196,33 @@ should be written.
 
 ---
 
+### EX-14 · What a forecast fill above 100% means 🔍
+
+**Explore** the Program vs. Forecast curves for 1800 Seven News (Channel 7 / SYD
+/ Monday, week of 08/03/2026)
+**with** the benchmark in `tests/benchmarks/program-vs-forecast.benchmark.spec.ts`,
+other weeks of the same programme, and a product owner
+**to discover** whether a forecast fill above 1.0 is intended, and why paid
+fill has no figure in the last two weeks before air.
+
+Raised while building the Program vs. Forecast benchmark (1 Oct 2026). Two
+things look odd; neither is asserted, because the rule is unknown:
+
+- The **current** forecast reaches 1.127 at 0 weeks prior, and the generic
+  (not program-specific) curve for the same forecast reaches 1.445. Either
+  forecasts deliberately target overbooking, or the curve is not capped where it
+  should be.
+- **Paid fill is `null` at 0 and 1 weeks prior** but has values from 2 to 27
+  weeks prior (0.83 at 2 weeks). The data snapshot (18/05/2026) is well after
+  this week aired, so "no snapshot yet" does not explain it. It could be how
+  the snapshots are bucketed into weeks prior.
+
+Not a question: the generic curve sitting ~0.318 above the current one is the
+"Program specific" flag. Tick it and the two curves are identical; the
+benchmark spec pins that.
+
+---
+
 ## Priority 2 — filters and state
 
 ### EX-05 · Filter persistence across pages
