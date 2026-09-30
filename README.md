@@ -47,8 +47,9 @@ server state. They are tagged `@destructive`, excluded from the default project,
 FOCUS_ALLOW_DESTRUCTIVE=1 npm run test:destructive
 ```
 
-Read [`tests/destructive/README.md`](tests/destructive/README.md) first. Focus
-has no undo.
+Read [`docs/write-surface.md`](docs/write-surface.md) first. Focus has no undo,
+and two of its writes have no visible trigger at all — opening a recommendation
+marks it inspected, and the Recommendations grid saves cells as you edit them.
 
 ## Filing defects into Axosoft
 
@@ -90,10 +91,11 @@ scripts/
   verify-axosoft.mjs    read-only Axosoft connectivity check
 docs/
   app-map.md            what Focus is, its routes, widgets and API
+  write-surface.md      what writes, what only looks like it does  <- read first
   findings.md           defects found, with reproductions
-  exploratory-charters.md  session charters for manual testing
   test-strategy.md      what is covered, what is not, and why
   recording-tests.md    codegen/VS Code recording, and converting the output
+  exploratory-charters.md  session charters for manual testing
   axosoft-integration.md   automatic defect filing
 ```
 

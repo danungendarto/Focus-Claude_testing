@@ -6,6 +6,8 @@ The user is a tester.
 
 Read `docs/app-map.md` before doing anything non-trivial — it is the reference
 for routes, widget types, the API query contract, and this environment's data.
+Read `docs/write-surface.md` before clicking or calling anything you have not
+already established is read-only.
 
 ## Safety rules — these matter more than anything else here
 
@@ -45,6 +47,15 @@ on jQuery's active-request count plus Focus's `#is-loading` flag.
 
 **Assert on widget state.** `readGrid`/`readGridRows` read the Kendo datasource.
 Rendered rows are virtualised and misreport totals.
+
+**Two waits that look redundant and are not.** `waitForGrid` requires idle to
+*hold* for several consecutive samples, not just to be true once: after a filter
+change there is a gap before the request goes out (widened by KI-002, which
+aborts the first request and re-sends it), and a single sample lands in that gap
+and reads an empty grid. Likewise every popup click goes through
+`waitForPopupSettled` — Kendo slides its popups open, and a click during the
+slide lands on a neighbouring option, selecting the wrong one. Don’t "simplify"
+either of these back to a single check.
 
 **Kendo hides the original `<input>`** for ComboBox, DropDownList and
 DropDownTree. Use `kendoWrapper` / `kendoVisibleInput`, which resolve the nearest
@@ -111,11 +122,40 @@ is read-only and checks it. Never call the write paths to "test" the integration
 
 ## Current state
 
-- 73 specs passing, 0 skipped, ~100s. Nothing writes to the server.
-- 5 open defects registered: KI-001 (empty results as 404), KI-002 (duplicate
+- 94 specs in the default project. Nothing in it writes to the server.
+- Stable at 4 workers as of 25 Aug 2026: 3 consecutive clean full runs plus two
+  `--repeat-each=3` stress runs over the report specs, ~380 spec executions with
+  no flake. Two separate races were fixed in `src/kendo/kendo.ts`: popup clicks
+  now wait for the slide animation to finish and are scoped to the widget’s own
+  popup, and `waitForGrid` requires idle to hold rather than sampling it once.
+  Cost is roughly +10s on a full run.
+- 8 open defects registered: KI-001 (empty results as 404), KI-002 (duplicate
   fetch on load), KI-003 (500 on unknown channelId), KI-004 (Recommendations
   shows an empty grid by default), KI-005 (Re-Optimise headroom safeguard is
-  dead code from a property-name casing mismatch — the most serious).
-- 12 exploratory charters written; EX-00 (reconnaissance) is done.
-- Destructive specs exist as gated skeletons; several are `fixme` pending
-  charter EX-07.
+  dead code from a property-name casing mismatch), KI-006 (InventoryBookingPace
+  500s unless `itemDate` parses — including the contract default `itemDate=`),
+  KI-007 (Inventory Summary and Recommendations disagree by 24% on available
+  inventory), KI-008 (report grids show whichever response arrives last, so
+  quick filter changes can leave figures for an earlier filter state on
+  screen). KI-005 and KI-007 are the two worth raising first: both are
+  silent, and both affect what the optimiser prices.
+- Two benchmarks: Booking Pace Summary (Channel 7 / Metro / 17–23 May 2026 /
+  0600–1000 / weekdays) and Program vs. Forecast (Channel 7 / SYD / week
+  08/03/2026 / Monday / 1800: Seven News vs 7MAIN: 1800 NEWS). See
+  `docs/benchmarks.md`. Re-baseline only on purpose
+  (`npm run benchmark:update`); check the recorded data vintage first.
+- Report-page grid fetches are plain XHRs: `jQuery.active` and `#is-loading`
+  do not see them. When a test depends on which response landed, use
+  `InflightRequests` from `src/network.ts`.
+- 15 exploratory charters (EX-00 … EX-14). EX-00 and EX-01 are done, EX-04 is
+  answered and closed, EX-07 is mostly answered. EX-13 (same booked volume,
+  11–15% different revenue between two reports) came out of EX-01 and is a
+  product question, not yet a defect. EX-14 (forecast fill above 100%, paid
+  fill missing in the last two weeks) came out of the Program vs. Forecast
+  benchmark.
+- Duration fields are **seconds**, not spot counts. `averageNet` is revenue over
+  30-second-equivalent spots (`paid / 30`) — EX-04, verified on 601 rows.
+- Destructive specs are gated. `reoptimise.spec.ts` is verified end-to-end —
+  baseline via the API, run, then diff both in and out of scope. Three writes in
+  `write-operations.spec.ts` are still `fixme`: bulk override, optimiser-rule
+  create/delete, and sending recommendations.

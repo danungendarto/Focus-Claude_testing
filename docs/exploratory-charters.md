@@ -32,7 +32,7 @@ The highest-value defects in a yield system are the ones where the page loads
 perfectly and the figure is wrong. Automation covers the arithmetic that is
 internally checkable; these charters go after the rest.
 
-### EX-01 · Cross-report consistency ⭐
+### EX-01 · Cross-report consistency ⭐ — *run 25 Aug 2026, two defects found*
 
 **Explore** the same channel/market/week across Inventory Summary, Booking Pace
 Summary, Above Below Forecast and Recommendations
@@ -46,6 +46,28 @@ endpoint. Nothing in the app forces them to agree, and no automated test can
 assert agreement until we know which quantities are *supposed* to match.
 
 Start with: Channel 7 / Sydney / week of 2026-06-21 / 0600–2359.
+
+**Session result (that exact scope, API-driven, read-only):**
+
+| Quantity | Inventory Summary | Booking Pace | Recommendations | Verdict |
+|---|---|---|---|---|
+| capacity | 97,125 | 97,125 | 97,125 | agree |
+| paid | 58,365 | 58,365 | 58,365 | agree |
+| available | 30,105 | 24,255 | 24,255 | **FOCUS-KI-007** |
+| paid base revenue | 15,017,287 | 13,340,649 | — | **unresolved → EX-13** |
+| paid net revenue | 2,362,691 | 2,098,088 | — | **unresolved → EX-13** |
+
+Also found: **FOCUS-KI-006** (`/api/InventoryBookingPace` 500s unless `itemDate`
+is a parseable date — including the contract default `itemDate=`), and a new
+instance of KI-001 (`/api/BookingDiscountPace` 404s an empty result set).
+
+**Method notes for anyone repeating this.** Booking Pace Summary returns a
+*pace series* — one row per booking-snapshot date, not per programme — so the
+comparable figure is its **last** row (18/05/2026, the data snapshot in the
+footer). Recommendations stamps every row with the week-commencing date and
+carries the real day in `weekDays`, so join slots on **`weekDays` + `startTime`**.
+Joining on `airDate` collapses 99 rows into 23 and manufactures mismatches that
+are not real — this cost a false lead during the session.
 
 ### EX-02 · What does an aggregate market actually represent? ⭐⭐
 
@@ -98,18 +120,106 @@ in `DEMAND_FLAGS`. To get rows at all, set the *Recommendations* filter to
 recommendation editor POSTs `SetInspected`, so exploring by clicking through
 recommendations silently marks them as reviewed. See `docs/findings.md`.
 
-### EX-04 · The averageNet divisor 🔍
+### EX-04 · The averageNet divisor ✅ — *answered 25 Aug 2026*
 
 **Explore** the `averageNet` and `averageBase` fields on Inventory Summary
 **with** the API response and the rendered grid
 **to discover** what they are actually averaged over.
 
-Open question from reconnaissance. On one observed row:
-`paidNetRevenue 110455`, `paid 420`, `averageNet 7889.64`.
-`110455 / 420 = 263`, but `110455 / 14 = 7889.64` — so the divisor is 14, not
-the paid spot count. Is 14 a spot count where `paid` is a duration in seconds?
-Confirm the unit before writing an assertion; a guessed invariant here would be
-worse than none.
+**Answered: `paid` is a duration in SECONDS, and the divisor is the number of
+30-second-equivalent spots.**
+
+```
+averageNet  = paidNetRevenue  / (paid / 30)
+averageBase = paidBaseRevenue / (paid / 30)
+```
+
+The recorded example fits exactly: `420 / 30 = 14`, and `110455 / 14 = 7889.64`.
+
+Verified on **601 rows with `paid > 0` across 7 scopes** (data-rich week, current
+week at both the default and a wide time window, Melbourne, Victoria Agg, 7TWO,
+and the snapshot week) with **zero exceptions**.
+
+Corroborated independently by `/api/Recommendations`, which names the same four
+quantities `capacityDuration`, `paidDuration`, `bonusDuration` and
+`availabilityDuration` — the seconds reading is the API’s own.
+
+Now asserted as an invariant in `tests/integrity/inventory-invariants.spec.ts`
+("average rates are revenue over 30-second-equivalent spots"). This charter is
+closed; leave it here as the worked example of resolving a unit before
+asserting on it.
+
+---
+
+### EX-13 · Same spots, different money ⭐⭐ 🔍
+
+**Explore** paid revenue for one scope across Inventory Summary and Booking Pace
+Summary
+**with** the two API responses, day by day, and a product owner
+**to discover** why identical booked volume is valued differently by the two
+reports.
+
+Raised by EX-01, and deliberately **not** written as an assertion because the
+correct behaviour is unknown.
+
+For channel 7 / Sydney / week 2026-06-21, the two reports agree on booked volume
+**exactly, every single day** — and disagree on what that volume is worth:
+
+| Day | paid (both) | Inventory Summary base | Booking Pace base | ratio |
+|---|---|---|---|---|
+| Mon | 6,495 | 2,683,472 | 2,366,652 | 1.134 |
+| Tue | 9,060 | 2,318,066 | 2,083,871 | 1.112 |
+| Wed | 8,670 | 2,312,074 | 2,068,884 | 1.118 |
+| Thu | 7,995 | 1,836,001 | 1,655,413 | 1.109 |
+| Fri | 9,180 | 2,176,604 | 1,932,059 | 1.127 |
+| Sat | 9,405 | 2,068,646 | 1,822,765 | 1.135 |
+| Sun | 7,560 | 1,622,424 | 1,411,005 | 1.150 |
+
+What is known:
+
+- Capacity and paid duration match **exactly** in every one of the seven days.
+- The gap is **not a constant multiplier** (1.109–1.150), so it is not GST, a
+  fixed loading, or a units error.
+- Net tracks base almost exactly, and both reports independently report the same
+  `paidAverageDiscount` (0.8427). So the discount is agreed; the **base rate**
+  is not.
+
+The leading hypothesis is that the pace series stores revenue *as at* each
+snapshot date while Inventory Summary values the same spots at the current rate
+card, so a re-rate since 18/05/2026 would separate them. That is a guess. If it
+is right, the pace report’s final point understates current revenue, and whether
+that is intended is a product question.
+
+**Ask the product owner first**, then decide whether this is EX-13 the bug or
+EX-13 the documented definition. Until then, no revenue-reconciliation assertion
+should be written.
+
+---
+
+### EX-14 · What a forecast fill above 100% means 🔍
+
+**Explore** the Program vs. Forecast curves for 1800 Seven News (Channel 7 / SYD
+/ Monday, week of 08/03/2026)
+**with** the benchmark in `tests/benchmarks/program-vs-forecast.benchmark.spec.ts`,
+other weeks of the same programme, and a product owner
+**to discover** whether a forecast fill above 1.0 is intended, and why paid
+fill has no figure in the last two weeks before air.
+
+Raised while building the Program vs. Forecast benchmark (1 Oct 2026). Two
+things look odd; neither is asserted, because the rule is unknown:
+
+- The **current** forecast reaches 1.127 at 0 weeks prior, and the generic
+  (not program-specific) curve for the same forecast reaches 1.445. Either
+  forecasts deliberately target overbooking, or the curve is not capped where it
+  should be.
+- **Paid fill is `null` at 0 and 1 weeks prior** but has values from 2 to 27
+  weeks prior (0.83 at 2 weeks). The data snapshot (18/05/2026) is well after
+  this week aired, so "no snapshot yet" does not explain it. It could be how
+  the snapshots are bucketed into weeks prior.
+
+Not a question: the generic curve sitting ~0.318 above the current one is the
+"Program specific" flag. Tick it and the two curves are identical; the
+benchmark spec pins that.
 
 ---
 

@@ -14,12 +14,16 @@ Replace the `FOCUS-KI-*` ids with real ticket numbers once these are raised.
 |---|---|---|---|
 | [KI-005](#focus-ki-005--re-optimise-headroom-check-is-unreachable-property-name-casing) | 🔴 high | Re-Optimise headroom safeguard is dead code — client reads `IsBudgetEnabled`, API sends `isBudgetEnabled` | `/ReOptimise` |
 | [KI-003](#focus-ki-003--unknown-channelid-returns-a-500-with-an-html-error-page) | 🔴 high | Unknown `channelId` returns 500 with an HTML error page from a JSON endpoint | report APIs |
+| [KI-007](#focus-ki-007--the-same-inventory-has-two-different-availability-figures) | 🔴 high | Inventory Summary says 30,105 available; Recommendations and Booking Pace say 24,255 | cross-report |
+| [KI-008](#focus-ki-008--report-grids-show-the-last-response-to-arrive-not-the-current-filters) | 🔴 high | Change filters quickly and the grid can show figures for an earlier filter state | report pages |
+| [KI-006](#focus-ki-006--inventorybookingpace-500s-unless-itemdate-is-a-valid-date) | 🔴 high | `/api/InventoryBookingPace` 500s for the default query shape — `itemDate` is unvalidated | `/api/InventoryBookingPace` |
 | [KI-001](#focus-ki-001--empty-result-sets-are-returned-as-http-404) | 🟠 med | Empty result sets returned as 404 with plain text, not 200 `[]` | several APIs |
 | [KI-004](#focus-ki-004--recommendations-shows-an-empty-grid-by-default-hiding-real-data) | 🟠 med | Recommendations shows an empty grid by default, hiding 99 real rows | `/Recommendations` |
 | [KI-002](#focus-ki-002--report-pages-fetch-their-data-twice-on-load) | 🟡 low | Report pages fetch their data twice on load | all reports |
 
-Two of these are **silent** — KI-005 and KI-004 produce no error a user would
-notice, which is what makes them the ones worth raising first.
+Four of these are **silent** — KI-005, KI-004, KI-007 and KI-008 produce no error a
+user would notice. KI-007 is the worst of that kind: the page renders perfectly
+and the availability figure is wrong.
 
 Observations that are not defects but change how you test are further down, and
 the safety-critical ones are consolidated in
@@ -59,7 +63,7 @@ not. Never a `500`.
 ## FOCUS-KI-001 · Empty result sets are returned as HTTP 404
 
 **Severity: medium** · `/api/OptimiserRule`, `/api/AboveBelowForecast`,
-`/api/Blacklist`, `/api/Recommendations`
+`/api/Blacklist`, `/api/Recommendations`, `/api/BookingDiscountPace`
 
 When a filter combination matches no data, Focus responds `404` with a
 plain-text body rather than `200` with an empty array.
@@ -81,6 +85,11 @@ Consequences:
 - Any monitoring that watches 4xx rates sees false alarms during normal use.
 
 **Expected:** `200` with `[]`. An empty result is a successful query.
+
+Charter EX-01 added `/api/BookingDiscountPace` to the list on 25 Aug 2026. It
+returns `404` with a JSON-encoded string body (`"No Booking/Discount Pace
+results found."`) rather than the plain text seen elsewhere — so even the
+empty-result contract is not self-consistent across endpoints.
 
 **Covered by:** `tests/known-issues/api-error-contract.spec.ts`
 
@@ -195,6 +204,168 @@ compares it against the live response, so it passes as soon as *either* side is
 corrected.
 
 **Found by:** converting a recorded session, 25 Aug 2026.
+
+---
+
+## FOCUS-KI-007 · The same inventory has two different availability figures
+
+**Severity: high** · `/api/ProgramInventory` vs `/api/Recommendations` and
+`/api/BookingPaceSummary`
+
+Found by charter EX-01. For **channel 7 / Sydney / week 2026-06-21 / 0600–2359**:
+
+| Quantity | Inventory Summary | Booking Pace | Recommendations | Agree? |
+|---|---|---|---|---|
+| capacity | 97,125 | 97,125 | 97,125 | yes |
+| paid | 58,365 | 58,365 | 58,365 | yes |
+| **available** | **30,105** | **24,255** | **24,255** | **no — 24% gap** |
+
+The three reports agree exactly on capacity and paid, and Inventory Summary
+agrees with Recommendations **row for row on capacity, paid and bonus across all
+99 rows**. So they describe the same inventory — they simply disagree about how
+much of it is available.
+
+**The disagreement is also internal to a single response.** In
+`/api/Recommendations` the four duration fields fail to reconcile on 15 of 99
+rows:
+
+```
+capacityDuration  !==  paidDuration + bonusDuration + availabilityDuration
+```
+
+The same identity holds on **99 of 99** rows in `/api/ProgramInventory`.
+
+**It is not a definitional difference.** The obvious explanation — that
+Recommendations reports availability net of grid-held inventory — does not
+survive the data. Across the 99 rows the shortfall behaves three different ways:
+
+| Behaviour | Rows |
+|---|---|
+| shortfall equals `totalGrid` (grid subtracted) | 12 |
+| `totalGrid` > 0 but nothing subtracted | 20 |
+| shortfall is *part* of `totalGrid` | 3 |
+| no grid inventory, no shortfall | 64 |
+
+Whatever availability is *supposed* to mean, one rule should apply to every row.
+`availGrid` is 0 on all 99 rows and all 99 share `runId` 22038, so this is not a
+staleness effect either.
+
+**Why it matters:** availability is what the optimiser believes it can still
+sell. A 24% disagreement between the report a planner reads and the figures the
+recommendations are built from is a pricing input, not a display nicety.
+
+**Reproduction** (stable across re-fetches):
+
+```bash
+Q="channelId=1&stationId=1&dayOfWeekId=127&startTime=600&endTime=2359&midPoint=0&startDate=2026-06-21&week=2026-06-21&endDate=2026-06-27&sortBy=Week&sortOrder=Desc&selectedItemId=-1&periodStyle=Weeks&comparativeForecastId=0&comparativeIsProgramSpecific=false&comparativeForecastModifier=0&selectedChannels=1&selectedStations=1&summaryType=0&itemDate=2026-06-21"
+
+curl -s "http://vst-focus-seven/api/ProgramInventory?$Q" | python -c "import sys,json;print('ProgramInventory available:', sum(r['available'] for r in json.load(sys.stdin)))"
+curl -s "http://vst-focus-seven/api/Recommendations?$Q"   | python -c "import sys,json;print('Recommendations  available:', sum(r['availabilityDuration'] for r in json.load(sys.stdin)))"
+```
+
+**Expected:** one availability figure per scope, and
+`capacityDuration = paidDuration + bonusDuration + availabilityDuration` on every
+row — or, if the two genuinely mean different things, two differently named
+fields and a documented definition.
+
+**Open question for the product owner:** which figure is authoritative? The
+answer decides whether this is a Recommendations bug or an Inventory Summary bug.
+
+**Watch the join key.** Recommendations stamps every row with the
+week-commencing date and carries the real day in `weekDays`, so slots must be
+matched on **`weekDays` + `startTime`**, never on `airDate`. Joining on `airDate`
+silently collapses 99 rows into 23 and manufactures mismatches that are not real.
+
+**Covered by:** `tests/known-issues/cross-report-consistency.spec.ts`
+
+---
+
+## FOCUS-KI-006 · InventoryBookingPace 500s unless itemDate is a valid date
+
+**Severity: high** · `/api/InventoryBookingPace`
+
+`itemDate` receives no validation. Anything that is not a parseable date returns
+HTTP 500 with an HTML error page, from an endpoint that otherwise returns JSON:
+
+| `itemDate` | Response |
+|---|---|
+| `""` — **the shared query contract’s default** | 500 `text/html` |
+| omitted entirely | 500 `text/html` |
+| `not-a-date` | 500 `text/html` |
+| `2026-13-45` (impossible date) | 500 `text/html` |
+| `2026-06-21` (valid) | 200 JSON |
+| `1999-01-01` (valid, no data) | 404 `problem+json` |
+
+The first row is the important one. `itemDate: ''` is the documented default of
+the report query contract that **every Focus page sends on every call**, so the
+ordinary request shape is the crashing one.
+
+**This is not "the endpoint has no validation".** Sibling parameters on the same
+endpoint are validated properly — a malformed `summaryType` returns
+`400 application/problem+json` — and a valid `itemDate` with no data returns a
+clean `404 problem+json`. Only `itemDate` is unguarded.
+
+```bash
+# 500, HTML error page — note the trailing empty itemDate
+curl -s -o /dev/null -w "%{http_code} %{content_type}\n" "http://vst-focus-seven/api/InventoryBookingPace?channelId=1&stationId=1&dayOfWeekId=127&startTime=600&endTime=2359&midPoint=0&startDate=2026-06-21&week=2026-06-21&endDate=2026-06-27&sortBy=Week&sortOrder=Desc&selectedItemId=-1&periodStyle=Weeks&comparativeForecastId=0&comparativeIsProgramSpecific=false&comparativeForecastModifier=0&selectedChannels=1&selectedStations=1&summaryType=0&itemDate="
+```
+
+```bash
+# 200, JSON — identical but for a parseable itemDate
+curl -s -o /dev/null -w "%{http_code} %{content_type}\n" "http://vst-focus-seven/api/InventoryBookingPace?channelId=1&stationId=1&dayOfWeekId=127&startTime=600&endTime=2359&midPoint=0&startDate=2026-06-21&week=2026-06-21&endDate=2026-06-27&sortBy=Week&sortOrder=Desc&selectedItemId=-1&periodStyle=Weeks&comparativeForecastId=0&comparativeIsProgramSpecific=false&comparativeForecastModifier=0&selectedChannels=1&selectedStations=1&summaryType=0&itemDate=2026-06-21"
+```
+
+**Expected:** `400 problem+json` for an unparseable or missing `itemDate`,
+matching how `summaryType` is already handled on the same endpoint.
+
+**Covered by:** `tests/known-issues/cross-report-consistency.spec.ts`
+
+---
+
+## FOCUS-KI-008 · Report grids show the last response to arrive, not the current filters
+
+**Severity: high** · observed on `/BookingPaceSummary`, found 1 Oct 2026 while
+capturing a benchmark. The request pattern is shared, so likely all report pages.
+
+Every filter change fires its own `/api/BookingPaceSummary` request straight
+away. Earlier requests are not cancelled, and their responses are not discarded
+when they come back, so **the grid shows whichever response arrives last**. A
+slow query for an intermediate filter state beats the fast query for the final
+one.
+
+What was observed, setting the filters one after another as a user would:
+
+| Sent (order) | Scope of the request | Arrived |
+|---|---|---|
+| 1 | Metro, **17/05 – 03/10**, 1800–2230, every day | **last** |
+| 2 | Metro, 17/05 – 23/05, 1800–2230, every day | 2nd |
+| 3 | Metro, 17/05 – 23/05, 0600–1000, every day | 3rd |
+| 4 | Metro, 17/05 – 23/05, 0600–1000, **weekdays** — what is on screen | 4th |
+
+Request 1 spans 20 weeks, so it is slow. It landed last and the grid showed its
+48 rows under filters that say one week, 0600–1000, weekdays. No error, no
+loading indicator. A planner reading that screen reads figures for a different
+scope.
+
+Two things widen the window:
+
+- Ticking one market group (`Metro`) fires **five identical requests**, one per
+  node the tree checks. Same family as KI-002.
+- These are plain XHRs. They do not go through jQuery and do not set
+  `#is-loading`, so the page has no in-flight state that could guard the grid.
+
+**To reproduce by hand:** open Booking Pace Summary, then without pausing set
+Week Start 17/05/2026, Week End 23/05/2026, Start Time 0600, End Time 1000.
+Watch the Network tab: the grid ends up matching whichever response finished
+last, which is not always the last request.
+
+**Expected:** only the response to the latest request is applied. Earlier ones
+are aborted, or ignored on arrival.
+
+**Covered by:** `tests/known-issues/report-filter-race.spec.ts`, which holds the
+stale request back with `page.route` so the race reproduces every time.
+Worked around in `tests/benchmarks/` by letting each filter change settle
+before the next.
 
 ---
 

@@ -1,0 +1,368 @@
+{
+  "name": "program-vs-forecast.ch7-syd.2026-03-08.mon.1800-seven-news.vs-7main-1800-news",
+  "description": "Program vs. Forecast fill curves for one programme. Compare, do not assert invariants.",
+  "scope": {
+    "channel": "Channel 7 (7)",
+    "market": "SYD",
+    "week": "08/03/2026",
+    "day": "Monday",
+    "program": "1800: Seven News",
+    "compareWith": "7MAIN: 1800 NEWS (Program specific unticked, modifier 1)"
+  },
+  "query": {
+    "channelId": 1,
+    "stationId": 1,
+    "dayOfWeekId": 2,
+    "startTime": 1800,
+    "endTime": 2230,
+    "midPoint": 1829,
+    "startDate": "2026-03-08",
+    "week": "2026-03-08",
+    "endDate": "2026-03-15",
+    "sortBy": "Week",
+    "sortOrder": "Desc",
+    "selectedItemId": 889568628,
+    "periodStyle": "Weeks",
+    "comparativeForecastId": 7,
+    "comparativeIsProgramSpecific": false,
+    "comparativeForecastModifier": 1,
+    "selectedChannels": "1",
+    "selectedStations": "1",
+    "summaryType": 0,
+    "itemDate": ""
+  },
+  "capturedAt": "2026-09-30T19:41:14.222Z",
+  "dataVintage": {
+    "latestSnapshot": "18/05/2026",
+    "importedOn": "24/06/2026",
+    "lastFullOptimise": "15/07/2026 6:48",
+    "version": "3.4.0.53"
+  },
+  "header": {
+    "currentForecast": {
+      "description": "7MAIN:  1800 NEWS",
+      "modifier": 1,
+      "isProgramSpecific": true
+    }
+  },
+  "rows": [
+    {
+      "weeksPrior": 0,
+      "paidFill": null,
+      "currentForecastFill": 1.1265984437503427,
+      "comparativeForecastFill": 1.4449162753398324
+    },
+    {
+      "weeksPrior": 1,
+      "paidFill": null,
+      "currentForecastFill": 1.0465984437503426,
+      "comparativeForecastFill": 1.3649162753398323
+    },
+    {
+      "weeksPrior": 2,
+      "paidFill": 0.8301886792452831,
+      "currentForecastFill": 0.9715984437503424,
+      "comparativeForecastFill": 1.289916275339832
+    },
+    {
+      "weeksPrior": 3,
+      "paidFill": 0.8301886792452831,
+      "currentForecastFill": 0.8946047728642667,
+      "comparativeForecastFill": 1.2129226044537562
+    },
+    {
+      "weeksPrior": 4,
+      "paidFill": 0.8301886792452831,
+      "currentForecastFill": 0.8646047728642666,
+      "comparativeForecastFill": 1.1809289335676803
+    },
+    {
+      "weeksPrior": 5,
+      "paidFill": 0.8301886792452831,
+      "currentForecastFill": 0.8346047728642666,
+      "comparativeForecastFill": 1.1252010854664145
+    },
+    {
+      "weeksPrior": 6,
+      "paidFill": 0.8679245283018868,
+      "currentForecastFill": 0.7946047728642666,
+      "comparativeForecastFill": 1.0572264019221107
+    },
+    {
+      "weeksPrior": 7,
+      "paidFill": 0.7735849056603774,
+      "currentForecastFill": 0.7546047728642665,
+      "comparativeForecastFill": 0.9379309636608257
+    },
+    {
+      "weeksPrior": 8,
+      "paidFill": 0.6981132075471698,
+      "currentForecastFill": 0.7048579374212286,
+      "comparativeForecastFill": 0.8809689383443701
+    },
+    {
+      "weeksPrior": 9,
+      "paidFill": 0.6415094339622641,
+      "currentForecastFill": 0.6648579374212286,
+      "comparativeForecastFill": 0.850601133233312
+    },
+    {
+      "weeksPrior": 10,
+      "paidFill": 0.6037735849056604,
+      "currentForecastFill": 0.6191300893199627,
+      "comparativeForecastFill": 0.8053236259304882
+    },
+    {
+      "weeksPrior": 11,
+      "paidFill": 0.6037735849056604,
+      "currentForecastFill": 0.4909655323579374,
+      "comparativeForecastFill": 0.662374160498268
+    },
+    {
+      "weeksPrior": 12,
+      "paidFill": 0.5849056603773585,
+      "currentForecastFill": 0.426408570332621,
+      "comparativeForecastFill": 0.5864247934096605
+    },
+    {
+      "weeksPrior": 13,
+      "paidFill": 0.5126582278481012,
+      "currentForecastFill": 0.3409655323579374,
+      "comparativeForecastFill": 0.4919980284550713
+    },
+    {
+      "weeksPrior": 14,
+      "paidFill": 0.379746835443038,
+      "currentForecastFill": 0.28129102964546004,
+      "comparativeForecastFill": 0.3970613195943118
+    },
+    {
+      "weeksPrior": 15,
+      "paidFill": 0.26582278481012656,
+      "currentForecastFill": 0.23246643651706944,
+      "comparativeForecastFill": 0.3198999945202477
+    },
+    {
+      "weeksPrior": 16,
+      "paidFill": 0.26582278481012656,
+      "currentForecastFill": 0.1849980820866897,
+      "comparativeForecastFill": 0.24530686612965094
+    },
+    {
+      "weeksPrior": 17,
+      "paidFill": 0.22784810126582278,
+      "currentForecastFill": 0.14491369390103567,
+      "comparativeForecastFill": 0.18593374979450927
+    },
+    {
+      "weeksPrior": 18,
+      "paidFill": 0.1518987341772152,
+      "currentForecastFill": 0.11833141542002303,
+      "comparativeForecastFill": 0.14009288180174256
+    },
+    {
+      "weeksPrior": 19,
+      "paidFill": 0.1518987341772152,
+      "currentForecastFill": 0.08898734177215191,
+      "comparativeForecastFill": 0.09915913200723328
+    },
+    {
+      "weeksPrior": 20,
+      "paidFill": 0.11392405063291139,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 21,
+      "paidFill": 0,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 22,
+      "paidFill": 0,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 23,
+      "paidFill": 0,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 24,
+      "paidFill": 0,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 25,
+      "paidFill": 0,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 26,
+      "paidFill": 0,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 27,
+      "paidFill": 0,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 28,
+      "paidFill": null,
+      "currentForecastFill": 0.07,
+      "comparativeForecastFill": 0.07
+    },
+    {
+      "weeksPrior": 29,
+      "paidFill": null,
+      "currentForecastFill": 0.05,
+      "comparativeForecastFill": 0.05
+    },
+    {
+      "weeksPrior": 30,
+      "paidFill": null,
+      "currentForecastFill": 0.03,
+      "comparativeForecastFill": 0.03
+    },
+    {
+      "weeksPrior": 31,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 32,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 33,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 34,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 35,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 36,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 37,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 38,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 39,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 40,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 41,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 42,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 43,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 44,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 45,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 46,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 47,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 48,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 49,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 50,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 51,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    },
+    {
+      "weeksPrior": 52,
+      "paidFill": null,
+      "currentForecastFill": 0,
+      "comparativeForecastFill": 0
+    }
+  ]
+}

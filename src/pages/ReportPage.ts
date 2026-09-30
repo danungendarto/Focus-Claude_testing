@@ -4,7 +4,7 @@ import {
   readGrid, readGridRows, waitForGrid, sortGridBy,
   selectInDropDownTree, setDropDownTreeValue, readDropDownTreeValue,
   setDatePicker, readDatePicker, setComboBox, readComboBox,
-  selectDropDownList, chartExists, type GridState,
+  selectDropDownList, readDropDownList, chartExists, type GridState,
 } from '../kendo/kendo';
 import type { RouteKey } from '../data/focus';
 
@@ -108,6 +108,14 @@ export class ReportPage extends BasePage {
     await setDropDownTreeValue(this.page, this.id('filter-MultiStation'), ids);
   }
 
+  /**
+   * Arrange-only shortcut for the Day of Week tree. Values are the day bits
+   * (Monday 1 ... Sunday 64); the page ORs them into `dayOfWeekId`.
+   */
+  async setDayMask(bits: number[]): Promise<void> {
+    await setDropDownTreeValue(this.page, this.id('filter-DayOfWeekMulti'), bits);
+  }
+
   async selectedChannelValue(): Promise<unknown> {
     return readDropDownTreeValue(this.page, this.id('filter-MultiChannel'));
   }
@@ -206,7 +214,17 @@ export class BookingDiscountPacePage extends ReportPage {
   }
 }
 
-/** Program vs. Forecast adds forecast-comparison controls. */
+/**
+ * Program vs. Forecast charts one programme's paid fill against forecast
+ * curves, by weeks prior to air. Its filters differ from the other reports:
+ *
+ * - Channel and Day of Week are single-select DropDownLists, Market a
+ *   DropDownTree, and there is one Week picker rather than a date range.
+ * - Day of Week bits start at **Sunday = 1** (Monday = 2 ... Saturday = 64),
+ *   unlike the multi-select day trees elsewhere, where Monday = 1.
+ * - The Program list is reloaded (`/api/program/`) when the week or day
+ *   changes, and its ids are per week, so pick the day before the programme.
+ */
 export class ProgramVsForecastPage extends ReportPage {
   constructor(page: Page) {
     super(page, 'pvf', 'programVsForecast');
@@ -216,7 +234,59 @@ export class ProgramVsForecastPage extends ReportPage {
     return this.page.locator('#pvf-currentForecast-description');
   }
 
+  get currentForecastIsProgramSpecific(): Locator {
+    return this.page.locator('#pvf-currentForecast-isProgrammeSpecific');
+  }
+
+  get currentForecastModifier(): Locator {
+    return this.page.locator('#pvf-currentForecast-modifier');
+  }
+
+  get compareProgramSpecificCheckbox(): Locator {
+    return this.page.locator('#pvf-filter-CompareWithProgrammeSpecific');
+  }
+
+  async selectChannel(code: string): Promise<void> {
+    await selectDropDownList(this.page, this.id('filter-Channel'), code);
+  }
+
+  /** Arrange-only shortcut: sets the single-market tree by id. */
+  async setStationId(id: number): Promise<void> {
+    await setDropDownTreeValue(this.page, this.id('filter-Station'), id);
+  }
+
+  /** The Sunday that starts the week, dd/MM/yyyy. */
+  async setWeek(ddMmYyyy: string): Promise<void> {
+    await setDatePicker(this.page, this.id('filter-Week'), ddMmYyyy);
+  }
+
+  async week(): Promise<string> {
+    return readDatePicker(this.page, this.id('filter-Week'));
+  }
+
+  /** Full day name, e.g. "Monday". */
+  async selectDay(day: string): Promise<void> {
+    await selectDropDownList(this.page, this.id('filter-DayOfWeek'), day);
+  }
+
+  /** As the list shows it, e.g. "1800: Seven News". */
+  async selectProgramme(text: string): Promise<void> {
+    await selectDropDownList(this.page, this.id('filter-Programme'), text);
+  }
+
+  async selectedProgramme(): Promise<string> {
+    return readDropDownList(this.page, this.id('filter-Programme'));
+  }
+
+  /**
+   * Forecast descriptions are stored with irregular spacing
+   * ("7MAIN:  1800 NEWS"), so pass the text exactly as the widget holds it.
+   */
   async selectCompareForecast(text: string): Promise<void> {
-    await selectDropDownList(this.page, 'pvf-filter-CompareWithForecast', text);
+    await selectDropDownList(this.page, this.id('filter-CompareWithForecast'), text);
+  }
+
+  async setCompareProgramSpecific(on: boolean): Promise<void> {
+    await this.compareProgramSpecificCheckbox.setChecked(on);
   }
 }
