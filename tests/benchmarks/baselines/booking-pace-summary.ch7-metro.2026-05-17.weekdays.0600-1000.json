@@ -30,11 +30,12 @@
     "summaryType": 0,
     "itemDate": ""
   },
-  "capturedAt": "2026-09-30T18:11:58.419Z",
+  "capturedAt": "2026-10-01T01:37:30.847Z",
+  "source": "http://vsp-focus-7",
   "dataVintage": {
-    "latestSnapshot": "18/05/2026",
-    "importedOn": "24/06/2026",
-    "lastFullOptimise": "15/07/2026 6:48",
+    "latestSnapshot": "23/02/2026",
+    "importedOn": "23/02/2026",
+    "lastFullOptimise": "23/02/2026 7:57",
     "version": "3.4.0.53"
   },
   "rows": [
@@ -205,174 +206,6 @@
       "maxDiscountRecommended": 0,
       "paidFillRate": 0.21798780487804878,
       "paidAverageDiscount": 0.8424531272076354
-    },
-    {
-      "formattedDate": "24/02/2026",
-      "programCount": 38,
-      "totalCapacity": 82320,
-      "totalPaidBooked": 19935,
-      "totalAvailability": 61620,
-      "paidBaseRevenue": 958669,
-      "paidNetRevenue": 151464,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.24216472303206998,
-      "paidAverageDiscount": 0.8420059478297515
-    },
-    {
-      "formattedDate": "3/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 59025,
-      "totalAvailability": 44580,
-      "paidBaseRevenue": 2572800,
-      "paidNetRevenue": 428171,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5346467391304348,
-      "paidAverageDiscount": 0.8335778140547263
-    },
-    {
-      "formattedDate": "4/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 59505,
-      "totalAvailability": 44250,
-      "paidBaseRevenue": 2609819,
-      "paidNetRevenue": 435136,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5389945652173913,
-      "paidAverageDiscount": 0.8332696635283903
-    },
-    {
-      "formattedDate": "5/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 60615,
-      "totalAvailability": 43140,
-      "paidBaseRevenue": 2682530,
-      "paidNetRevenue": 454935,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5490489130434782,
-      "paidAverageDiscount": 0.8304082340178861
-    },
-    {
-      "formattedDate": "6/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 60000,
-      "totalAvailability": 43410,
-      "paidBaseRevenue": 2638895,
-      "paidNetRevenue": 439421,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5434782608695652,
-      "paidAverageDiscount": 0.8334829540394748
-    },
-    {
-      "formattedDate": "7/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 60285,
-      "totalAvailability": 42675,
-      "paidBaseRevenue": 2647418,
-      "paidNetRevenue": 439673,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5460597826086957,
-      "paidAverageDiscount": 0.8339238457999455
-    },
-    {
-      "formattedDate": "8/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 60495,
-      "totalAvailability": 42525,
-      "paidBaseRevenue": 2657164,
-      "paidNetRevenue": 441336,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5479619565217392,
-      "paidAverageDiscount": 0.833907128050809
-    },
-    {
-      "formattedDate": "10/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 61455,
-      "totalAvailability": 41475,
-      "paidBaseRevenue": 2699742,
-      "paidNetRevenue": 447072,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5566576086956522,
-      "paidAverageDiscount": 0.8344019539644899
-    },
-    {
-      "formattedDate": "11/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 61485,
-      "totalAvailability": 41445,
-      "paidBaseRevenue": 2702202,
-      "paidNetRevenue": 447615,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5569293478260869,
-      "paidAverageDiscount": 0.8343517620074294
-    },
-    {
-      "formattedDate": "12/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 61350,
-      "totalAvailability": 42045,
-      "paidBaseRevenue": 2717742,
-      "paidNetRevenue": 451541,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5557065217391305,
-      "paidAverageDiscount": 0.8338543540924782
-    },
-    {
-      "formattedDate": "13/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 62865,
-      "totalAvailability": 40200,
-      "paidBaseRevenue": 2784874,
-      "paidNetRevenue": 463360,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.569429347826087,
-      "paidAverageDiscount": 0.8336154526201185
-    },
-    {
-      "formattedDate": "14/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110400,
-      "totalPaidBooked": 63330,
-      "totalAvailability": 39315,
-      "paidBaseRevenue": 2831594,
-      "paidNetRevenue": 468419,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5736413043478261,
-      "paidAverageDiscount": 0.834574095015034
-    },
-    {
-      "formattedDate": "15/05/2026",
-      "programCount": 50,
-      "totalCapacity": 110100,
-      "totalPaidBooked": 67050,
-      "totalAvailability": 35040,
-      "paidBaseRevenue": 3106953,
-      "paidNetRevenue": 514791,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.6089918256130791,
-      "paidAverageDiscount": 0.8343100137015269
-    },
-    {
-      "formattedDate": "18/05/2026",
-      "programCount": 50,
-      "totalCapacity": 109950,
-      "totalPaidBooked": 64155,
-      "totalAvailability": 38055,
-      "paidBaseRevenue": 2962202,
-      "paidNetRevenue": 481125,
-      "maxDiscountRecommended": 0,
-      "paidFillRate": 0.5834924965893588,
-      "paidAverageDiscount": 0.8375785986235915
     }
   ]
 }

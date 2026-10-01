@@ -140,7 +140,8 @@ is read-only and checks it. Never call the write paths to "test" the integration
   screen). KI-005 and KI-007 are the two worth raising first: both are
   silent, and both affect what the optimiser prices.
 - Two benchmarks: Booking Pace Summary (Channel 7 / Metro / 17–23 May 2026 /
-  0600–1000 / weekdays) and Program vs. Forecast (Channel 7 / SYD / week
+  0600–1000 / weekdays — baseline from **production**, `vsp-focus-7`; re-capture
+  it with `FOCUS_BASE_URL=http://vsp-focus-7`, never with `benchmark:update`) and Program vs. Forecast (Channel 7 / SYD / week
   08/03/2026 / Monday / 1800: Seven News vs 7MAIN: 1800 NEWS). See
   `docs/benchmarks.md`. Re-baseline only on purpose
   (`npm run benchmark:update`); check the recorded data vintage first.

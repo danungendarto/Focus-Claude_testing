@@ -30,6 +30,12 @@ export interface BenchmarkBaseline<Row> {
   /** The exact query sent to the API. */
   query: Record<string, string | number | boolean>;
   capturedAt: string;
+  /**
+   * The Focus instance the baseline was captured from, e.g. production
+   * (http://vsp-focus-7) when the suite runs against test. Absent on baselines
+   * captured from the suite's own target before this was recorded.
+   */
+  source?: string;
   /** Footer metadata at capture time. If it has changed, suspect the data first. */
   dataVintage: Record<string, string>;
   /**
@@ -147,8 +153,13 @@ export async function readDataVintage(
 /** Turns a diff into a failure message that says whether the data moved underneath. */
 export function explainDiff<Row>(
   diffs: string[], baseline: BenchmarkBaseline<Row>, vintage?: Record<string, string>,
+  /** The instance under test, so a cross-environment comparison says so. */
+  target?: string,
 ): string {
   const lines = [`${diffs.length} difference(s) from benchmark ${baseline.name} (captured ${baseline.capturedAt})`];
+  if (baseline.source && target && baseline.source !== target) {
+    lines.push(`  NOTE: baseline is from ${baseline.source}, this run is against ${target} -- different instances, so different data vintages are expected`);
+  }
   if (vintage) {
     for (const k of ['latestSnapshot', 'importedOn', 'version'] as const) {
       if (baseline.dataVintage[k] !== vintage[k]) {

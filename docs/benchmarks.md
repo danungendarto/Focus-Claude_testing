@@ -6,8 +6,29 @@ it does not claim the figures are *right*, only that they are *unchanged*.
 
 | Benchmark | Scope | Rows | Captured |
 |---|---|---|---|
-| `booking-pace-summary.ch7-metro.2026-05-17.weekdays.0600-1000` | Booking Pace Summary · Channel 7 · Metro · 17/05/2026–23/05/2026 · 0600–1000 · Mon–Fri | 28 | 1 Oct 2026, Focus 3.4.0.53, snapshot 18/05/2026 |
+| `booking-pace-summary.ch7-metro.2026-05-17.weekdays.0600-1000` | Booking Pace Summary · Channel 7 · Metro · 17/05/2026–23/05/2026 · 0600–1000 · Mon–Fri | 14 | 1 Oct 2026 from **production** (`vsp-focus-7`), Focus 3.4.0.53, snapshot 23/02/2026 |
 | `program-vs-forecast.ch7-syd.2026-03-08.mon.1800-seven-news.vs-7main-1800-news` | Program vs. Forecast · Channel 7 · SYD · week 08/03/2026 · Monday · 1800: Seven News · compare with 7MAIN: 1800 NEWS | 53 | 1 Oct 2026, Focus 3.4.0.53, snapshot 18/05/2026 |
+
+Where a baseline came from is recorded in its `source` field. A failure
+message says so when that differs from the instance under test.
+
+**Booking Pace Summary is a production benchmark.** Its baseline comes from
+production (`http://vsp-focus-7`), and the suite compares the test instance
+(`vst-focus-seven`) against it. The two are imported separately, so a
+difference may be a vintage gap rather than a defect. Production's pace series
+stops at its own snapshot, so test can show later rows production does not
+have. Re-capture it from production only:
+
+```bash
+FOCUS_BASE_URL=http://vsp-focus-7 npx playwright test --project=chromium tests/benchmarks/booking-pace-summary.benchmark.spec.ts --update-snapshots
+```
+
+`npm run benchmark:update` re-captures **every** benchmark from the default
+target, which would overwrite the production baseline with test figures. Use it
+only for benchmarks whose source is the test instance.
+
+Production is read-only for this suite as for any other instance: the API test
+only GETs, and the UI test only changes filters.
 
 Specs: `tests/benchmarks/*.benchmark.spec.ts`.
 Baselines: `tests/benchmarks/baselines/*.json` (committed).
