@@ -1,8 +1,8 @@
-import { type APIRequestContext } from '@playwright/test';
+import { type APIRequestContext, type TestInfo } from '@playwright/test';
 import { test, expect } from '../../src/fixtures';
 import { READ_API, ROUTES, defaultReportQuery } from '../../src/data/focus';
 import {
-  type CompareOptions,
+  type BenchmarkBaseline, type CompareOptions,
   diffRows, pick, readBaseline, writeBaseline, shouldWriteBaseline, baselinePath,
   qs, readDataVintage, explainDiff,
 } from '../../src/benchmarks/benchmark';
@@ -34,7 +34,9 @@ import { InflightRequests } from '../../src/network';
  * - Forecast ids are shared: 7 is "7MAIN: 1800 NEWS" on both instances. The
  *   curve a forecast draws is not: each instance builds it from its own
  *   imported data, so after a re-import the forecast curves can move while
- *   paid fill (history) does not.
+ *   paid fill (history) does not. Against test, therefore, only paid fill must
+ *   match production; forecast differences are annotated, not failed. Run
+ *   against production, all three curves are compared.
  * - The current forecast for this programme is itself "7MAIN: 1800 NEWS",
  *   flagged Program Specific. The comparison as benchmarked leaves the page's
  *   "Program specific" box unticked (its default), so the comparative curve is
@@ -102,6 +104,48 @@ const COMPARE: CompareOptions<CurveRow> = {
 };
 const FIELDS: Array<keyof CurveRow & string> = [...COMPARE.exact, ...COMPARE.approx!];
 
+const FORECAST_FIELDS: Array<keyof CurveRow & string> = ['currentForecastFill', 'comparativeForecastFill'];
+
+/**
+ * Against another instance (test vs the production baseline), only paid fill
+ * must match. Each instance builds its forecast curves from its own import, so
+ * forecasts differing between instances is expected rather than a failure
+ * (decided 2 Oct 2026, pending the product owner -- see docs/benchmarks.md).
+ * Forecast differences are still computed and reported; see noteForecastDiffs.
+ *
+ * Against the baseline's own instance every curve is compared strictly, so a
+ * change on production is still caught when the benchmark is run there.
+ */
+function crossInstance(baseline: BenchmarkBaseline<CurveRow>, target: string | undefined): boolean {
+  return !!baseline.source && !!target && baseline.source !== target;
+}
+
+function compareFor(baseline: BenchmarkBaseline<CurveRow>, target: string | undefined): CompareOptions<CurveRow> {
+  return crossInstance(baseline, target) ? { ...COMPARE, approx: ['paidFill'] } : COMPARE;
+}
+
+/** Reports forecast differences that a cross-instance run does not fail on, so a pass never hides them. */
+async function noteForecastDiffs(
+  baseline: BenchmarkBaseline<CurveRow>, actual: CurveRow[], target: string | undefined,
+  testInfo: TestInfo,
+): Promise<void> {
+  if (!crossInstance(baseline, target)) return;
+  const forecastOnly = diffRows(baseline.rows, actual, { ...COMPARE, exact: [], approx: FORECAST_FIELDS });
+  if (!forecastOnly.length) return;
+  const weeks = baseline.rows
+    .filter((r) => diffRows([r], actual.filter((a) => a.weeksPrior === r.weeksPrior), {
+      ...COMPARE, exact: [], approx: FORECAST_FIELDS,
+    }).length)
+    .map((r) => r.weeksPrior);
+  testInfo.annotations.push({
+    type: 'benchmark',
+    description:
+      `${forecastOnly.length} forecast value(s) differ from ${baseline.source} (informational, not compared): ` +
+      `weeks prior ${Math.min(...weeks)}-${Math.max(...weeks)}`,
+  });
+  await testInfo.attach('forecast-differences.txt', { body: forecastOnly.join('\n'), contentType: 'text/plain' });
+}
+
 /**
  * Production answers a cold query in seconds rather than milliseconds (5 s for
  * the Program list on first capture), and Booking Pace has seen 33-40 s cold.
@@ -164,7 +208,8 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
     });
     expect(body.currentForecast, `current forecast differs from ${NAME}`)
       .toEqual(baseline!.header?.currentForecast);
-    const diffs = diffRows(baseline!.rows, actual, COMPARE);
+    await noteForecastDiffs(baseline!, actual, baseURL, testInfo);
+    const diffs = diffRows(baseline!.rows, actual, compareFor(baseline!, baseURL));
     expect(diffs, explainDiff(diffs, baseline!, vintage, baseURL)).toEqual([]);
   });
 
@@ -226,7 +271,8 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
     });
 
     const vintage = await readDataVintage(page.request, ROUTES.programVsForecast);
-    const diffs = diffRows(baseline!.rows, actual, COMPARE);
+    await noteForecastDiffs(baseline!, actual, baseURL, testInfo);
+    const diffs = diffRows(baseline!.rows, actual, compareFor(baseline!, baseURL));
     expect(diffs, explainDiff(diffs, baseline!, vintage, baseURL)).toEqual([]);
 
     await programVsForecast.expectNoErrors();

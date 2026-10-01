@@ -52,6 +52,21 @@ spec rather than in the baseline:
   re-imported on 01/10/2026 and production on 23/02/2026, so that difference is
   expected to persist until the imports line up.
 
+So the comparison depends on where it runs (decided 2 Oct 2026; open question
+for the product owner, below):
+
+- **Against test** (any instance other than the baseline's `source`): paid fill
+  must match on every row; the `currentForecast` header must match. Forecast
+  curves are compared but **not failed on**: the differences go into a
+  `benchmark` annotation and a `forecast-differences.txt` attachment, so a pass
+  never hides them.
+- **Against production** (the baseline's own instance): all three curves are
+  compared strictly.
+
+Open question: are forecast curves meant to differ between production and test
+after separate imports? If not, one instance's forecast build is wrong. Make
+the forecast curves strict again and handle it as a defect.
+
 Re-capture it from production only:
 
 ```bash
