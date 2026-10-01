@@ -11,7 +11,13 @@ import { InflightRequests } from '../../src/network';
 /**
  * Benchmark: Program vs. Forecast, Channel 7 / SYD / week of 08/03/2026 /
  * Monday / 1800: Seven News, compared with forecast "7MAIN: 1800 NEWS".
- * Captured 1 Oct 2026 against Focus 3.4.0.53.
+ *
+ * The baseline comes from PRODUCTION (http://vsp-focus-7), captured 2 Oct 2026,
+ * Focus 3.4.0.53, data snapshot 23/02/2026. The suite runs against test
+ * (vst-focus-seven), so this asks "does test agree with production?". Re-capture
+ * from production, not from test:
+ *
+ *   FOCUS_BASE_URL=http://vsp-focus-7 npx playwright test --project=chromium  *     tests/benchmarks/program-vs-forecast.benchmark.spec.ts --update-snapshots
  *
  * Pins the three curves the report draws -- paid fill, current forecast fill,
  * comparative forecast fill -- for weeks prior 0..52. See
@@ -21,15 +27,19 @@ import { InflightRequests } from '../../src/network';
  *
  * - Day of Week on this page counts from **Sunday = 1**, so Monday is
  *   `dayOfWeekId=2`, not 1 as on the other reports.
- * - The programme is sent as `selectedItemId`, a per-week grid id (889568628
- *   for this Monday's 1800 Seven News). A re-import may renumber it; if the API
- *   test fails on a changed vintage, check that id first.
+ * - The programme is sent as `selectedItemId`, a per-instance, per-week grid
+ *   id: 888957886 on production, 889568628 on test, for the same Monday 1800
+ *   Seven News. So the tests look it up on the instance under test (by title
+ *   and day) rather than replaying the baseline's id.
+ * - Forecast ids are shared: 7 is "7MAIN: 1800 NEWS" on both instances. The
+ *   curve a forecast draws is not: each instance builds it from its own
+ *   imported data, so after a re-import the forecast curves can move while
+ *   paid fill (history) does not.
  * - The current forecast for this programme is itself "7MAIN: 1800 NEWS",
  *   flagged Program Specific. The comparison as benchmarked leaves the page's
  *   "Program specific" box unticked (its default), so the comparative curve is
- *   the generic one and runs ~0.318 above current for weeks 0-7. That gap is the
- *   flag, not a defect: tick it and the two curves are identical -- the last
- *   test pins that.
+ *   the generic one and differs from the current curve. Tick it and the two
+ *   are identical -- the last test pins that.
  * - `paidFill` is null where there is no snapshot and 0 where there is one with
  *   nothing booked; both occur here (null at 0-1 and 28+, 0 at 21-27), and the
  *   comparison keeps them distinct.
@@ -41,7 +51,6 @@ const NAME = 'program-vs-forecast.ch7-syd.2026-03-08.mon.1800-seven-news.vs-7mai
 const COMPARE_FORECAST = '7MAIN:  1800 NEWS';
 const COMPARE_FORECAST_ID = 7;
 const PROGRAMME = '1800: Seven News';
-const PROGRAMME_ITEM_ID = 889568628;
 const MONDAY_ON_THIS_PAGE = 2;
 
 const QUERY = defaultReportQuery({
@@ -55,7 +64,8 @@ const QUERY = defaultReportQuery({
   week: '2026-03-08',
   // This page sends Sunday to the following Sunday, not Sunday to Saturday.
   endDate: '2026-03-15',
-  selectedItemId: PROGRAMME_ITEM_ID,
+  // Replaced at run time by the instance's own id; see programmeItemId().
+  selectedItemId: -1,
   comparativeForecastId: COMPARE_FORECAST_ID,
   comparativeIsProgramSpecific: false,
   comparativeForecastModifier: 1,
@@ -92,8 +102,28 @@ const COMPARE: CompareOptions<CurveRow> = {
 };
 const FIELDS: Array<keyof CurveRow & string> = [...COMPARE.exact, ...COMPARE.approx!];
 
+/**
+ * Production answers a cold query in seconds rather than milliseconds (5 s for
+ * the Program list on first capture), and Booking Pace has seen 33-40 s cold.
+ */
+const COLD_QUERY_MS = 90_000;
+
+/**
+ * This programme's `selectedItemId` on the instance under test. The ids are
+ * per instance, so the baseline's own id would ask test for nothing (or for
+ * another programme). Looked up the way the page does, from /api/program/.
+ */
+async function programmeItemId(request: APIRequestContext): Promise<number> {
+  const res = await request.get(`/api/program/?${qs({ ...QUERY })}`, { timeout: COLD_QUERY_MS });
+  expect(res.status(), 'the Program list should load').toBe(200);
+  const list = (await res.json()) as Array<{ id: number; displayProgramTitle: string; dayOfWeek: string }>;
+  const hits = list.filter((p) => p.displayProgramTitle === PROGRAMME && p.dayOfWeek === 'Mon');
+  expect(hits.length, `exactly one Monday "${PROGRAMME}" in week 08/03/2026`).toBe(1);
+  return hits[0].id;
+}
+
 async function fetchPvf(request: APIRequestContext, query: Record<string, unknown>) {
-  const res = await request.get(`${READ_API.programVsForecast}?${qs(query)}`);
+  const res = await request.get(`${READ_API.programVsForecast}?${qs(query)}`, { timeout: COLD_QUERY_MS });
   expect(res.status(), 'the benchmark scope should return data').toBe(200);
   return (await res.json()) as PvfResponse;
 }
@@ -101,10 +131,11 @@ async function fetchPvf(request: APIRequestContext, query: Record<string, unknow
 test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 1800 Seven News vs 7MAIN 1800 NEWS', () => {
   // The API test is the only one that writes a baseline; the others must run
   // after it so that a re-baseline is compared against the fresh file.
-  test.describe.configure({ mode: 'serial' });
+  test.describe.configure({ mode: 'serial', timeout: 240_000 });
 
-  test('API figures match the benchmark', async ({ request }, testInfo) => {
-    const body = await fetchPvf(request, { ...QUERY });
+  test('API figures match the benchmark', async ({ request, baseURL }, testInfo) => {
+    const itemId = await programmeItemId(request);
+    const body = await fetchPvf(request, { ...QUERY, selectedItemId: itemId });
     const actual = pick(body.results, FIELDS);
     expect(actual.length, 'the benchmark scope should not be empty').toBeGreaterThan(0);
 
@@ -116,8 +147,9 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
         name: NAME,
         description: 'Program vs. Forecast fill curves for one programme. Compare, do not assert invariants.',
         scope: SCOPE,
-        query: { ...QUERY },
+        query: { ...QUERY, selectedItemId: itemId },
         capturedAt: new Date().toISOString(),
+        source: baseURL,
         dataVintage: vintage,
         header: { currentForecast: body.currentForecast },
         rows: actual,
@@ -133,11 +165,11 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
     expect(body.currentForecast, `current forecast differs from ${NAME}`)
       .toEqual(baseline!.header?.currentForecast);
     const diffs = diffRows(baseline!.rows, actual, COMPARE);
-    expect(diffs, explainDiff(diffs, baseline!, vintage)).toEqual([]);
+    expect(diffs, explainDiff(diffs, baseline!, vintage, baseURL)).toEqual([]);
   });
 
   test('the page, driven through its filters, shows the benchmark figures', async ({
-    page, programVsForecast, diagnostics,
+    page, programVsForecast, diagnostics, baseURL,
   }, testInfo) => {
     const baseline = readBaseline<CurveRow>(NAME);
     expect(baseline, `baseline missing: ${baselinePath(NAME)}`).toBeDefined();
@@ -151,11 +183,11 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
     // response lands LAST (FOCUS-KI-008). Let each one finish before the next.
     const step = async (change: () => Promise<void>) => {
       await change();
-      await api.settled();
+      await api.settled(500, COLD_QUERY_MS);
     };
 
     await programVsForecast.open();
-    await api.settled();
+    await api.settled(500, COLD_QUERY_MS);
 
     // Arrange: Channel 7 / SYD are the defaults, but set them so the test does
     // not depend on that.
@@ -167,7 +199,7 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
     await step(() => programVsForecast.selectDay('Monday'));
     await step(() => programVsForecast.selectProgramme(PROGRAMME));
     await step(() => programVsForecast.selectCompareForecast(COMPARE_FORECAST));
-    await programVsForecast.waitForGrid();
+    await programVsForecast.waitForGrid(COLD_QUERY_MS);
 
     expect(await programVsForecast.week(), 'week').toBe('08/03/2026');
     expect(await programVsForecast.selectedProgramme(), 'programme').toBe(PROGRAMME);
@@ -181,8 +213,8 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
     expect(sent.get('stationId'), 'market').toBe('1');
     expect(sent.get('week'), 'week').toBe('2026-03-08');
     expect(sent.get('dayOfWeekId'), 'Monday is 2 on this page').toBe(String(MONDAY_ON_THIS_PAGE));
-    expect(sent.get('selectedItemId'), 'Monday 1800 Seven News for this week -- renumbered by a re-import?')
-      .toBe(String(PROGRAMME_ITEM_ID));
+    expect(sent.get('selectedItemId'), 'Monday 1800 Seven News on this instance')
+      .toBe(String(await programmeItemId(page.request)));
     expect(sent.get('comparativeForecastId'), 'compare with 7MAIN: 1800 NEWS').toBe(String(COMPARE_FORECAST_ID));
     expect(sent.get('comparativeIsProgramSpecific'), 'program specific').toBe('false');
     expect(sent.get('comparativeForecastModifier'), 'modifier').toBe('1');
@@ -195,7 +227,7 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
 
     const vintage = await readDataVintage(page.request, ROUTES.programVsForecast);
     const diffs = diffRows(baseline!.rows, actual, COMPARE);
-    expect(diffs, explainDiff(diffs, baseline!, vintage)).toEqual([]);
+    expect(diffs, explainDiff(diffs, baseline!, vintage, baseURL)).toEqual([]);
 
     await programVsForecast.expectNoErrors();
     diagnostics.expectClean();
@@ -205,8 +237,10 @@ test.describe('@benchmark program vs forecast: ch7 / SYD / 08-03-2026 / Mon / 18
     // Same forecast, same Program Specific flag, same modifier as the current
     // forecast: the comparative curve is the current curve, row for row. This
     // is an identity, not a guessed business rule -- and it is what explains
-    // the gap in the benchmark above.
-    const body = await fetchPvf(request, { ...QUERY, comparativeIsProgramSpecific: true });
+    // the gap between the two curves in the benchmark above. Instance-local:
+    // it needs no baseline.
+    const itemId = await programmeItemId(request);
+    const body = await fetchPvf(request, { ...QUERY, selectedItemId: itemId, comparativeIsProgramSpecific: true });
     expect(body.currentForecast, 'precondition: current forecast is 7MAIN: 1800 NEWS, program specific, x1')
       .toEqual({ description: COMPARE_FORECAST, modifier: 1, isProgramSpecific: true });
 

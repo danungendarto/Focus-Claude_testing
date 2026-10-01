@@ -143,7 +143,9 @@ is read-only and checks it. Never call the write paths to "test" the integration
   0600–1000 / weekdays — baseline from **production**, `vsp-focus-7`; re-capture
   it with `FOCUS_BASE_URL=http://vsp-focus-7`, never with `benchmark:update`;
   dates after production's snapshot are annotated, not compared) and Program vs. Forecast (Channel 7 / SYD / week
-  08/03/2026 / Monday / 1800: Seven News vs 7MAIN: 1800 NEWS). See
+  08/03/2026 / Monday / 1800: Seven News vs 7MAIN: 1800 NEWS — also from
+  **production**, re-captured the same way; its programme id is looked up per
+  instance). See
   `docs/benchmarks.md`. Re-baseline only on purpose
   (`npm run benchmark:update`); check the recorded data vintage first.
 - Report-page grid fetches are plain XHRs: `jQuery.active` and `#is-loading`

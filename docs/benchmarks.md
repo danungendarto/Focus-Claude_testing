@@ -7,7 +7,7 @@ it does not claim the figures are *right*, only that they are *unchanged*.
 | Benchmark | Scope | Rows | Captured |
 |---|---|---|---|
 | `booking-pace-summary.ch7-metro.2026-05-17.weekdays.0600-1000` | Booking Pace Summary · Channel 7 · Metro · 17/05/2026–23/05/2026 · 0600–1000 · Mon–Fri | 14 | 1 Oct 2026 from **production** (`vsp-focus-7`), Focus 3.4.0.53, snapshot 23/02/2026 |
-| `program-vs-forecast.ch7-syd.2026-03-08.mon.1800-seven-news.vs-7main-1800-news` | Program vs. Forecast · Channel 7 · SYD · week 08/03/2026 · Monday · 1800: Seven News · compare with 7MAIN: 1800 NEWS | 53 | 1 Oct 2026, Focus 3.4.0.53, snapshot 18/05/2026 |
+| `program-vs-forecast.ch7-syd.2026-03-08.mon.1800-seven-news.vs-7main-1800-news` | Program vs. Forecast · Channel 7 · SYD · week 08/03/2026 · Monday · 1800: Seven News · compare with 7MAIN: 1800 NEWS | 53 | 2 Oct 2026 from **production** (`vsp-focus-7`), Focus 3.4.0.53, snapshot 23/02/2026 |
 
 Where a baseline came from is recorded in its `source` field. A failure
 message says so when that differs from the instance under test.
@@ -35,6 +35,27 @@ FOCUS_BASE_URL=http://vsp-focus-7 npx playwright test --project=chromium tests/b
 `npm run benchmark:update` re-captures **every** benchmark from the default
 target, which would overwrite the production baseline with test figures. Use it
 only for benchmarks whose source is the test instance.
+
+**Program vs. Forecast is also a production benchmark.** Its series is weeks
+prior to air (0-52), not dates, so there is nothing to cut off at the snapshot:
+every row is compared. Two things differ by instance and are handled in the
+spec rather than in the baseline:
+
+- The programme's `selectedItemId` is per instance (production 888957886, test
+  889568628 for the same Monday 1800 Seven News). The tests look it up on the
+  instance under test from `/api/program/`; the baseline's `query` records
+  production's.
+- Each instance builds forecast curves from its own imported data. As of
+  2 Oct 2026, paid fill agrees with production on all 53 rows, while the
+  current and comparative forecast curves differ for 0-24 weeks prior. Test was
+  re-imported on 01/10/2026 and production on 23/02/2026, so that difference is
+  expected to persist until the imports line up.
+
+Re-capture it from production only:
+
+```bash
+FOCUS_BASE_URL=http://vsp-focus-7 npx playwright test --project=chromium tests/benchmarks/program-vs-forecast.benchmark.spec.ts --update-snapshots
+```
 
 Production is read-only for this suite as for any other instance: the API test
 only GETs, and the UI test only changes filters.
@@ -99,8 +120,8 @@ then run it once to write the baseline. Two things learned the hard way:
   query, not `stationId=7`.
 - **Program vs. Forecast has its own filter vocabulary.** Day of Week counts from
   Sunday = 1 (Monday is `dayOfWeekId=2`), `endDate` is the following Sunday, and
-  the programme is sent as `selectedItemId`, a per-week id that a re-import may
-  renumber. The Program list reloads from `/api/program/` when week or day
+  the programme is sent as `selectedItemId`, a per-week id that differs between
+  instances and that a re-import may renumber; look it up, don't store it. The Program list reloads from `/api/program/` when week or day
   changes, so settle on `/api/`, not only on the report endpoint, and pick the
   day before the programme. Forecast names are stored with a double space
   (`7MAIN:  1800 NEWS`); pass them verbatim.
