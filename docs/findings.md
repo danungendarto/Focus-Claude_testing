@@ -276,6 +276,24 @@ week-commencing date and carries the real day in `weekDays`, so slots must be
 matched on **`weekDays` + `startTime`**, never on `airDate`. Joining on `airDate`
 silently collapses 99 rows into 23 and manufactures mismatches that are not real.
 
+**Still reproduces after the 1 Oct 2026 re-import.** That re-import left week
+2026-06-21 with no recommendations (Recommendations returns 404), because the
+optimiser writes them forward from the new snapshot (31/08/2026). The defect is
+still there in every week checked from 2026-08-23 to 2026-12-20. Here is each
+week's count of rows that fail to reconcile, and availability (Recommendations
+vs Inventory Summary):
+
+| Week | Rows not reconciling | Recommendations available | Inventory Summary available |
+|---|---|---|---|
+| 2026-09-06 | 6 of 96 | 19,325 | 20,015 |
+| 2026-10-25 | 22 of 99 | 41,855 | 45,365 |
+| 2026-12-13 | 40 of 92 | 53,765 | 68,690 |
+
+Week 2026-12-27 was the one exception (0 rows, 100,590 on both). The specs now
+use the first full week after the snapshot, worked out at run time
+(`src/data/live-scopes.ts`). The reproduction above still applies with that
+week's dates.
+
 **Covered by:** `tests/known-issues/cross-report-consistency.spec.ts`
 
 ---

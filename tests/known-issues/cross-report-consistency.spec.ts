@@ -1,5 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
 import { READ_API, dataRichQuery, type ReportQuery } from '../../src/data/focus';
+import { recommendationsWeek } from '../../src/data/live-scopes';
 
 /**
  * Defects found by charter EX-01 (cross-report consistency), 25 Aug 2026.
@@ -19,6 +20,22 @@ function qs(query: ReportQuery): string {
 
 /** The fixed filter set from charter EX-01: channel 7 / Sydney / 0600-2359. */
 const EX01_QUERY = dataRichQuery();
+
+/**
+ * EX-01's filters, but in a week that has recommendations on this instance.
+ *
+ * KI-007 was found in week 2026-06-21. Recommendations are generated forward
+ * from the data snapshot, so after the 1 Oct 2026 re-import that week has none,
+ * and these specs skipped instead of exercising the defect. The week is now
+ * the first full week after the snapshot (see src/data/live-scopes.ts). On
+ * 2 Oct 2026 that was 2026-09-06: 96 slots, 6 that fail to reconcile, and
+ * availability 19,325 vs 20,015. The defect reproduced in every week checked
+ * from 2026-08-23 to 2026-12-20.
+ */
+async function ki007Query(request: APIRequestContext): Promise<ReportQuery> {
+  const week = await recommendationsWeek(request);
+  return dataRichQuery({ startDate: week.start, week: week.start, endDate: week.end });
+}
 
 interface InventoryRow {
   summaryBy: string;
@@ -107,12 +124,30 @@ test.describe('@known-issue cross-report consistency', () => {
     expect(res.headers()['content-type'] ?? '').toContain('problem+json');
   });
 
+  test('the KI-007 scope has recommendations and inventory to compare', async ({ request }) => {
+    // Not a test.fail spec. The KI-007 specs below skip when their scope is
+    // empty, and a test.fail spec that fails for lack of data would read as
+    // "defect still present". This one goes red instead, so a scope that loses
+    // its data is noticed rather than silently dropping KI-007's coverage.
+    const query = await ki007Query(request);
+    const [invRes, recRes] = await Promise.all([
+      request.get(`${READ_API.programInventory}?${qs(query)}`),
+      request.get(`${READ_API.recommendations}?${qs(query)}`),
+    ]);
+    const scope = `week ${query.startDate}..${query.endDate}`;
+    expect(recRes.status(), `Recommendations should have rows for ${scope}`).toBe(200);
+    expect(invRes.status(), `Inventory Summary should have rows for ${scope}`).toBe(200);
+    expect(((await recRes.json()) as unknown[]).length, `recommendations in ${scope}`).toBeGreaterThan(0);
+    expect(((await invRes.json()) as unknown[]).length, `inventory rows in ${scope}`).toBeGreaterThan(0);
+  });
+
   test('FOCUS-KI-007 Recommendations durations should reconcile against capacity', async ({
     request,
   }) => {
-    test.fail(true, 'FOCUS-KI-007: the four duration fields do not reconcile on ~15% of rows');
+    test.fail(true, 'FOCUS-KI-007: the four duration fields do not reconcile on some rows');
 
-    const res = await request.get(`${READ_API.recommendations}?${qs(EX01_QUERY)}`);
+    const query = await ki007Query(request);
+    const res = await request.get(`${READ_API.recommendations}?${qs(query)}`);
     test.skip(!res.ok(), 'no recommendations for this scope');
     const rows: RecommendationRow[] = await res.json();
     test.skip(rows.length === 0, 'no recommendations for this scope');
@@ -132,9 +167,10 @@ test.describe('@known-issue cross-report consistency', () => {
   }) => {
     test.fail(true, 'FOCUS-KI-007: the two reports disagree on available inventory');
 
+    const query = await ki007Query(request);
     const [invRes, recRes] = await Promise.all([
-      request.get(`${READ_API.programInventory}?${qs(EX01_QUERY)}`),
-      request.get(`${READ_API.recommendations}?${qs(EX01_QUERY)}`),
+      request.get(`${READ_API.programInventory}?${qs(query)}`),
+      request.get(`${READ_API.recommendations}?${qs(query)}`),
     ]);
     test.skip(!invRes.ok() || !recRes.ok(), 'no data for this scope');
 
@@ -150,11 +186,12 @@ test.describe('@known-issue cross-report consistency', () => {
 
   test('capacity, paid and bonus DO agree across the two reports', async ({ request }) => {
     // Not a defect -- this is the control. It establishes that the two reports
-    // describe the same 99 slots, which is what makes the availability gap a
+    // describe the same slots (99 in EX-01's week, 96 on 2 Oct 2026), which is what makes the availability gap a
     // genuine disagreement rather than two different populations.
+    const query = await ki007Query(request);
     const [invRes, recRes] = await Promise.all([
-      request.get(`${READ_API.programInventory}?${qs(EX01_QUERY)}`),
-      request.get(`${READ_API.recommendations}?${qs(EX01_QUERY)}`),
+      request.get(`${READ_API.programInventory}?${qs(query)}`),
+      request.get(`${READ_API.recommendations}?${qs(query)}`),
     ]);
     test.skip(!invRes.ok() || !recRes.ok(), 'no data for this scope');
 

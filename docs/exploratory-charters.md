@@ -196,6 +196,39 @@ should be written.
 
 ---
 
+### EX-15 · Which late-night programmes Recommendations leaves out 🔍
+
+**Explore** the slots that Inventory Summary has and Recommendations does not,
+for channel 7 / Sydney / 0600–2359
+**with** `/api/ProgramInventory` and `/api/Recommendations` side by side, a
+range of weeks after the snapshot, and a product owner
+**to discover** the rule that decides whether a programme that runs past
+midnight is in Recommendations' scope.
+
+Raised 2 Oct 2026 while repointing the KI-007 specs. In some weeks
+Recommendations is missing one or two of Inventory Summary's slots, so the two
+reports no longer cover the same population. Every missing slot starts 23:00–23:59
+and runs well past midnight:
+
+| Week | Missing from Recommendations | Present (also cross midnight) |
+|---|---|---|
+| 2026-08-30 | Su 2338–2438, Fr 2350–2529 | Mo 2305–2404, Sa 2300–2414 |
+| 2026-09-13 | Th 2320–2459, Fr 2345–2524 | Mo 2310–2409, Tu 2345–2414 |
+| 2026-09-20 | Sa 2300–2514 | Su 2300–2429, We 2345–2414 |
+| 2026-12-06 | Sa 2330–2459 | — |
+
+So "crosses midnight" is not the rule: everything missing ends at 24:38 or
+later, and everything present ends by 24:29. A cut-off around 00:30, or one
+based on the share of the programme inside the window, would both fit. Neither
+is asserted.
+
+Why it matters: KI-007's control ("capacity, paid and bonus DO agree") requires
+the same slots in both reports. It holds in the week the specs use today
+(2026-09-06), but would fail in a week with one of these slots. If that
+happens, this charter is the reason. It is not KI-007.
+
+---
+
 ### EX-14 · What a forecast fill above 100% means 🔍
 
 **Explore** the Program vs. Forecast curves for 1800 Seven News (Channel 7 / SYD
