@@ -1,7 +1,7 @@
 import { test, expect } from '../../src/fixtures';
 import { READ_API, ROUTES, dayMask, defaultReportQuery } from '../../src/data/focus';
 import {
-  type CompareOptions,
+  type BenchmarkBaseline, type CompareOptions, afterSnapshot,
   diffRows, pick, readBaseline, writeBaseline, shouldWriteBaseline, baselinePath,
   qs, readDataVintage, explainDiff,
 } from '../../src/benchmarks/benchmark';
@@ -91,6 +91,31 @@ const FIELDS: Array<keyof PaceRow & string> = ['formattedDate', ...COMPARE.exact
  */
 const COLD_QUERY_MS = 90_000;
 
+/**
+ * The baseline is production's, and production's data stops at its snapshot.
+ * Dates after that are data production never had, so they are reported but not
+ * compared. Every baseline date must still be present and identical, and an
+ * extra date inside production's range still fails.
+ */
+function compareAgainst(baseline: BenchmarkBaseline<PaceRow>): CompareOptions<PaceRow> {
+  return { ...COMPARE, ignoreExtra: afterSnapshot(baseline, (r) => r.formattedDate) };
+}
+
+/** Records the dates that were not compared, so a pass never hides them. */
+function noteUncompared(
+  baseline: BenchmarkBaseline<PaceRow>, actual: PaceRow[], testInfo: { annotations: Array<{ type: string; description?: string }> },
+): void {
+  const known = new Set(baseline.rows.map((r) => r.formattedDate));
+  const beyond = actual.filter((r) => !known.has(r.formattedDate) && compareAgainst(baseline).ignoreExtra!(r));
+  if (!beyond.length) return;
+  testInfo.annotations.push({
+    type: 'benchmark',
+    description:
+      `${beyond.length} date(s) after the baseline's snapshot ${baseline.dataVintage.latestSnapshot} ` +
+      `(${baseline.source ?? 'baseline instance'}) were not compared: ${beyond.map((r) => r.formattedDate).join(', ')}`,
+  });
+}
+
 test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0600-1000 / weekdays', () => {
   // The API test is the only one that writes a baseline; the UI test must run
   // after it so that a re-baseline is compared against the fresh file.
@@ -124,7 +149,8 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
     await testInfo.attach('actual-rows.json', {
       body: JSON.stringify(actual, null, 2), contentType: 'application/json',
     });
-    const diffs = diffRows(baseline!.rows, actual, COMPARE);
+    noteUncompared(baseline!, actual, testInfo);
+    const diffs = diffRows(baseline!.rows, actual, compareAgainst(baseline!));
     expect(diffs, explainDiff(diffs, baseline!, vintage, baseURL)).toEqual([]);
   });
 
@@ -175,7 +201,8 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
     });
 
     const vintage = await readDataVintage(page.request, ROUTES.bookingPaceSummary);
-    const diffs = diffRows(baseline!.rows, actual, COMPARE);
+    noteUncompared(baseline!, actual, testInfo);
+    const diffs = diffRows(baseline!.rows, actual, compareAgainst(baseline!));
     expect(diffs, explainDiff(diffs, baseline!, vintage, baseURL)).toEqual([]);
 
     await bookingPaceSummary.expectNoErrors();

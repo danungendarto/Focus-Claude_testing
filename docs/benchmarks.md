@@ -14,10 +14,19 @@ message says so when that differs from the instance under test.
 
 **Booking Pace Summary is a production benchmark.** Its baseline comes from
 production (`http://vsp-focus-7`), and the suite compares the test instance
-(`vst-focus-seven`) against it. The two are imported separately, so a
-difference may be a vintage gap rather than a defect. Production's pace series
-stops at its own snapshot, so test can show later rows production does not
-have. Re-capture it from production only:
+(`vst-focus-seven`) against it. The two are imported separately, and
+production's pace series stops at its own snapshot (23/02/2026), so test has
+later dates production never had. The comparison therefore works like this:
+
+- Every date in the baseline must be on test, with every figure identical.
+- A date on test that is **after** the baseline's snapshot is not compared. It
+  is listed in a `benchmark` annotation on the test result, so a pass never
+  hides it.
+- A date on test that is **within** production's range but not in the baseline
+  still fails: that is a real disagreement, not a vintage gap.
+
+As of 1 Oct 2026 that means 14 dates compared (10/02-23/02, all identical) and
+14 not compared (24/02, 3/05-18/05). Re-capture it from production only:
 
 ```bash
 FOCUS_BASE_URL=http://vsp-focus-7 npx playwright test --project=chromium tests/benchmarks/booking-pace-summary.benchmark.spec.ts --update-snapshots
