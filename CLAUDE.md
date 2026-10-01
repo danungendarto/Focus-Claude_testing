@@ -127,7 +127,7 @@ is read-only and checks it. Never call the write paths to "test" the integration
 
 ## Current state
 
-- 95 specs in the default project. Nothing in it writes to the server.
+- 97 specs in the default project. Nothing in it writes to the server.
 - Stable at 4 workers as of 25 Aug 2026: 3 consecutive clean full runs plus two
   `--repeat-each=3` stress runs over the report specs, ~380 spec executions with
   no flake. Two separate races were fixed in `src/kendo/kendo.ts`: popup clicks

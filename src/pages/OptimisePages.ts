@@ -311,6 +311,11 @@ export class RecommendationsPage extends BasePage {
     return readDropDownList(this.page, 'rec-filter-OptimisationType');
   }
 
+  /** The Recommendations (change) filter's current text, e.g. "Any Change". */
+  async currentRecommendationFilter(): Promise<string> {
+    return readDropDownList(this.page, 'rec-filter-Recommendations');
+  }
+
   /** Dates are dd/MM/yyyy, matching what Focus renders. */
   async setDateRange(startDdMmYyyy: string, endDdMmYyyy: string): Promise<void> {
     await setDatePicker(this.page, 'rec-filter-WeekStart', startDdMmYyyy);
