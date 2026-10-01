@@ -63,7 +63,12 @@ DropDownTree. Use `kendoWrapper` / `kendoVisibleInput`, which resolve the neares
 
 **Use `DATA_RICH_WEEK` + `WIDE_TIME_WINDOW`** when a test needs populated rows.
 Data coverage varies by week *and* by time window — the current week is fine for
-testing defaults, not content.
+testing defaults, not content. **Recommendations are the exception:** the
+optimiser writes them forward from the data snapshot, so a fixed week goes
+empty at the next re-import. Use `recommendationsWeek` in
+`src/data/live-scopes.ts`, which derives one from the snapshot. Under the page's
+default "Any Change" filter there may be no rows in any range (KI-004), so a
+UI test that needs rows sets the filter to "All".
 
 ## Handling a defect
 
@@ -122,7 +127,7 @@ is read-only and checks it. Never call the write paths to "test" the integration
 
 ## Current state
 
-- 94 specs in the default project. Nothing in it writes to the server.
+- 95 specs in the default project. Nothing in it writes to the server.
 - Stable at 4 workers as of 25 Aug 2026: 3 consecutive clean full runs plus two
   `--repeat-each=3` stress runs over the report specs, ~380 spec executions with
   no flake. Two separate races were fixed in `src/kendo/kendo.ts`: popup clicks
@@ -152,12 +157,13 @@ is read-only and checks it. Never call the write paths to "test" the integration
 - Report-page grid fetches are plain XHRs: `jQuery.active` and `#is-loading`
   do not see them. When a test depends on which response landed, use
   `InflightRequests` from `src/network.ts`.
-- 15 exploratory charters (EX-00 … EX-14). EX-00 and EX-01 are done, EX-04 is
+- 16 exploratory charters (EX-00 … EX-15). EX-00 and EX-01 are done, EX-04 is
   answered and closed, EX-07 is mostly answered. EX-13 (same booked volume,
   11–15% different revenue between two reports) came out of EX-01 and is a
   product question, not yet a defect. EX-14 (forecast fill above 100%, paid
   fill missing in the last two weeks) came out of the Program vs. Forecast
-  benchmark.
+  benchmark. EX-15 (Recommendations leaves out some programmes that run well past
+  midnight) came out of repointing the KI-007 specs.
 - Duration fields are **seconds**, not spot counts. `averageNet` is revenue over
   30-second-equivalent spots (`paid / 30`) — EX-04, verified on 601 rows.
 - Destructive specs are gated. `reoptimise.spec.ts` is verified end-to-end —

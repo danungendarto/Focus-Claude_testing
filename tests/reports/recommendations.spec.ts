@@ -1,5 +1,8 @@
+import { type APIRequestContext } from '@playwright/test';
 import { test, expect } from '../../src/fixtures';
 import { readGridLeafColumns } from '../../src/kendo/kendo';
+import { type RecommendationsPage } from '../../src/pages/OptimisePages';
+import { recommendationsWeek, spanWeeks, toPickerDate, type IsoWeek } from '../../src/data/live-scopes';
 
 /**
  * Recommendations — the optimiser's output, and the page a planner actually
@@ -7,7 +10,10 @@ import { readGridLeafColumns } from '../../src/kendo/kendo';
  *
  * Converted from a recorded session (see docs/recording-tests.md). The recording
  * discovered something worth keeping: the page's default filters return an empty
- * grid even when recommendations exist, and widening the date range reveals them.
+ * grid even when recommendations exist (FOCUS-KI-004). The Recommendations
+ * filter defaults to "Any Change", and since the 1 Oct 2026 re-optimise no
+ * Manual recommendation on test matches it in ANY date range. So a test that
+ * needs rows sets that filter to "All". Widening the range is not enough.
  *
  * SAFETY: this page writes in more places than it looks like it does.
  *   - Send and Bulk Override write, and cannot be undone.
@@ -22,11 +28,24 @@ import { readGridLeafColumns } from '../../src/kendo/kendo';
  */
 
 /**
- * A date range verified to contain recommendations in this environment.
- * A single week returns nothing under the default "Any Change" filter, so the
- * range is deliberately wide — that is the behaviour, not a workaround.
+ * Recommendations are generated forward from the data snapshot, so a fixed
+ * range goes empty at the next re-import. Until 1 Oct 2026 this was
+ * 03/05-29/08/2026, which then lost every recommendation. The range is now
+ * worked out from the snapshot: the first full week after it, and a span of
+ * POPULATED_WEEKS from there (see src/data/live-scopes.ts).
  */
-const POPULATED_RANGE = { start: '03/05/2026', end: '29/08/2026' };
+const POPULATED_WEEKS = 4;
+
+/** Shows recommendations that exist: the span after the snapshot, filter "All". */
+async function showPopulated(
+  recommendations: RecommendationsPage, request: APIRequestContext, weeks = POPULATED_WEEKS,
+): Promise<IsoWeek> {
+  const range = spanWeeks(await recommendationsWeek(request), weeks);
+  await recommendations.setRecommendationFilter('All');
+  await recommendations.setDateRange(toPickerDate(range.start), toPickerDate(range.end));
+  await recommendations.waitForGrid();
+  return range;
+}
 
 test.describe('@report recommendations', () => {
   test.beforeEach(async ({ recommendations }) => {
@@ -48,26 +67,24 @@ test.describe('@report recommendations', () => {
     diagnostics.expectClean();
   });
 
-  test('widening the date range reveals recommendations', async ({ recommendations }) => {
-    // The default single-week window returns nothing under "Any Change".
-    const initial = await recommendations.state();
+  test('widening the date range keeps every recommendation', async ({ recommendations, request }) => {
+    const week = await showPopulated(recommendations, request, 1);
+    const single = (await recommendations.state()).total;
+    expect(single, `the first week after the snapshot (${week.start}) should have recommendations`)
+      .toBeGreaterThan(0);
 
-    await recommendations.setDateRange(POPULATED_RANGE.start, POPULATED_RANGE.end);
-    await recommendations.waitForGrid();
-
-    const widened = await recommendations.state();
-    expect(widened.total, 'a wider date range should not return fewer rows')
-      .toBeGreaterThanOrEqual(initial.total);
-    expect(widened.total, 'this range is known to contain recommendations').toBeGreaterThan(0);
+    const span = await showPopulated(recommendations, request);
+    const widened = (await recommendations.state()).total;
+    expect(widened, `${span.start}..${span.end} contains ${week.start}, so it cannot have fewer rows`)
+      .toBeGreaterThanOrEqual(single);
 
     await recommendations.expectNoErrors();
   });
 
   test('Both returns at least as many recommendations as Manual alone', async ({
-    recommendations,
+    recommendations, request,
   }) => {
-    await recommendations.setDateRange(POPULATED_RANGE.start, POPULATED_RANGE.end);
-    await recommendations.waitForGrid();
+    await showPopulated(recommendations, request);
 
     // Manual is the page default; assert it rather than assume it.
     expect(await recommendations.currentOptimisationType()).toBe('Manual');
@@ -85,9 +102,8 @@ test.describe('@report recommendations', () => {
       .toBeGreaterThanOrEqual(manual);
   });
 
-  test('the grid can be sorted by a leaf column without losing rows', async ({ recommendations }) => {
-    await recommendations.setDateRange(POPULATED_RANGE.start, POPULATED_RANGE.end);
-    await recommendations.waitForGrid();
+  test('the grid can be sorted by a leaf column without losing rows', async ({ recommendations, request }) => {
+    await showPopulated(recommendations, request);
 
     const before = await recommendations.state();
     test.skip(before.total === 0, 'no recommendations to sort');
@@ -105,9 +121,8 @@ test.describe('@report recommendations', () => {
     await recommendations.expectNoErrors();
   });
 
-  test('the grid exposes its grouped and leaf columns', async ({ page, recommendations }) => {
-    await recommendations.setDateRange(POPULATED_RANGE.start, POPULATED_RANGE.end);
-    await recommendations.waitForGrid();
+  test('the grid exposes its grouped and leaf columns', async ({ page, recommendations, request }) => {
+    await showPopulated(recommendations, request);
 
     const leaves = await readGridLeafColumns(page, 'rec-grid');
 
@@ -117,9 +132,8 @@ test.describe('@report recommendations', () => {
     }
   });
 
-  test('the write controls are present but are never operated here', async ({ recommendations }) => {
-    await recommendations.setDateRange(POPULATED_RANGE.start, POPULATED_RANGE.end);
-    await recommendations.waitForGrid();
+  test('the write controls are present but are never operated here', async ({ recommendations, request }) => {
+    await showPopulated(recommendations, request);
     test.skip((await recommendations.state()).total === 0, 'no recommendations loaded');
 
     // Documents the hazard rather than exercising it. Send, Bulk Override and
