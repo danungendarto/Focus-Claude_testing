@@ -1,7 +1,7 @@
 import { test, expect } from '../../src/fixtures';
 import { READ_API, ROUTES, dayMask, defaultReportQuery } from '../../src/data/focus';
 import {
-  type CompareOptions,
+  type BenchmarkBaseline, type CompareOptions, afterSnapshot,
   diffRows, pick, readBaseline, writeBaseline, shouldWriteBaseline, baselinePath,
   qs, readDataVintage, explainDiff,
 } from '../../src/benchmarks/benchmark';
@@ -9,7 +9,15 @@ import { InflightRequests } from '../../src/network';
 
 /**
  * Benchmark: Booking Pace Summary, Channel 7 / Metro / 17-23 May 2026 /
- * 0600-1000 / weekdays. Captured 1 Oct 2026 against Focus 3.4.0.53.
+ * 0600-1000 / weekdays.
+ *
+ * The baseline comes from PRODUCTION (http://vsp-focus-7), captured 1 Oct 2026,
+ * Focus 3.4.0.53, data snapshot 23/02/2026. The suite runs against test
+ * (vst-focus-seven), so this asks "does test agree with production?". The two
+ * instances are imported separately; check the vintage note in a failure first.
+ * Re-capture from production, not from test:
+ *
+ *   FOCUS_BASE_URL=http://vsp-focus-7 npx playwright test --project=chromium  *     tests/benchmarks/booking-pace-summary.benchmark.spec.ts --update-snapshots
  *
  * Pins every figure the report shows for this scope, so a later build can be
  * compared against it. See src/benchmarks/benchmark.ts for how to re-baseline
@@ -20,9 +28,9 @@ import { InflightRequests } from '../../src/network';
  * - "Metro" (id 7) is a group header, and the API 404s it on its own. Ticking it
  *   in the UI selects the group plus its five cities, so the page sends
  *   `stationId=1&selectedStations=7,1,2,3,4,5`. That is the query benchmarked.
- * - The report is a pace series: one row per booking-snapshot date (Feb-May
- *   2026), not one per day of the chosen week. The last row, 18/05/2026, is the
- *   data snapshot in the footer.
+ * - The report is a pace series: one row per booking-snapshot date, not one
+ *   per day of the chosen week. It stops at the instance's data snapshot, so
+ *   production's series (snapshot 23/02/2026) is shorter than test's.
  */
 
 const NAME = 'booking-pace-summary.ch7-metro.2026-05-17.weekdays.0600-1000';
@@ -76,13 +84,45 @@ const COMPARE: CompareOptions<PaceRow> = {
 };
 const FIELDS: Array<keyof PaceRow & string> = ['formattedDate', ...COMPARE.exact, ...COMPARE.approx!];
 
+/**
+ * A cold first query for this scope has taken 33-40 s on both instances, then
+ * well under a second. The defaults (15 s per request, 60 s per test) fail on
+ * the cold run for reasons that have nothing to do with the figures.
+ */
+const COLD_QUERY_MS = 90_000;
+
+/**
+ * The baseline is production's, and production's data stops at its snapshot.
+ * Dates after that are data production never had, so they are reported but not
+ * compared. Every baseline date must still be present and identical, and an
+ * extra date inside production's range still fails.
+ */
+function compareAgainst(baseline: BenchmarkBaseline<PaceRow>): CompareOptions<PaceRow> {
+  return { ...COMPARE, ignoreExtra: afterSnapshot(baseline, (r) => r.formattedDate) };
+}
+
+/** Records the dates that were not compared, so a pass never hides them. */
+function noteUncompared(
+  baseline: BenchmarkBaseline<PaceRow>, actual: PaceRow[], testInfo: { annotations: Array<{ type: string; description?: string }> },
+): void {
+  const known = new Set(baseline.rows.map((r) => r.formattedDate));
+  const beyond = actual.filter((r) => !known.has(r.formattedDate) && compareAgainst(baseline).ignoreExtra!(r));
+  if (!beyond.length) return;
+  testInfo.annotations.push({
+    type: 'benchmark',
+    description:
+      `${beyond.length} date(s) after the baseline's snapshot ${baseline.dataVintage.latestSnapshot} ` +
+      `(${baseline.source ?? 'baseline instance'}) were not compared: ${beyond.map((r) => r.formattedDate).join(', ')}`,
+  });
+}
+
 test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0600-1000 / weekdays', () => {
   // The API test is the only one that writes a baseline; the UI test must run
   // after it so that a re-baseline is compared against the fresh file.
-  test.describe.configure({ mode: 'serial' });
+  test.describe.configure({ mode: 'serial', timeout: 240_000 });
 
-  test('API figures match the benchmark', async ({ request }, testInfo) => {
-    const res = await request.get(`${READ_API.bookingPaceSummary}?${qs({ ...QUERY })}`);
+  test('API figures match the benchmark', async ({ request, baseURL }, testInfo) => {
+    const res = await request.get(`${READ_API.bookingPaceSummary}?${qs({ ...QUERY })}`, { timeout: COLD_QUERY_MS });
     expect(res.status(), 'the benchmark scope should return data').toBe(200);
     const actual = pick((await res.json()) as PaceRow[], FIELDS);
     expect(actual.length, 'the benchmark scope should not be empty').toBeGreaterThan(0);
@@ -97,6 +137,7 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
         scope: SCOPE,
         query: { ...QUERY },
         capturedAt: new Date().toISOString(),
+        source: baseURL,
         dataVintage: vintage,
         rows: actual,
       });
@@ -108,12 +149,13 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
     await testInfo.attach('actual-rows.json', {
       body: JSON.stringify(actual, null, 2), contentType: 'application/json',
     });
-    const diffs = diffRows(baseline!.rows, actual, COMPARE);
-    expect(diffs, explainDiff(diffs, baseline!, vintage)).toEqual([]);
+    noteUncompared(baseline!, actual, testInfo);
+    const diffs = diffRows(baseline!.rows, actual, compareAgainst(baseline!));
+    expect(diffs, explainDiff(diffs, baseline!, vintage, baseURL)).toEqual([]);
   });
 
   test('the page, driven through its filters, shows the benchmark figures', async ({
-    page, bookingPaceSummary, diagnostics,
+    page, bookingPaceSummary, diagnostics, baseURL,
   }, testInfo) => {
     const baseline = readBaseline<PaceRow>(NAME);
     expect(baseline, `baseline missing: ${baselinePath(NAME)}`).toBeDefined();
@@ -126,11 +168,11 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
     // figures. Do not collapse these into one settle at the end.
     const step = async (change: () => Promise<void>) => {
       await change();
-      await api.settled();
+      await api.settled(500, COLD_QUERY_MS);
     };
 
     await bookingPaceSummary.open();
-    await api.settled();
+    await api.settled(500, COLD_QUERY_MS);
 
     // Arrange: Channel 7 is the default, but set it so the test does not depend on that.
     await step(() => bookingPaceSummary.setChannelIds([1]));
@@ -139,7 +181,7 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
     await step(() => bookingPaceSummary.setDateRange('17/05/2026', '23/05/2026'));
     await step(() => bookingPaceSummary.setTimeRange('0600', '1000'));
     await step(() => bookingPaceSummary.setDayMask([1, 2, 4, 8, 16]));
-    await bookingPaceSummary.waitForGrid();
+    await bookingPaceSummary.waitForGrid(COLD_QUERY_MS);
 
     // The page must have asked for exactly the benchmarked scope.
     const sent = new URL(api.sent.at(-1) ?? 'http://none/').searchParams;
@@ -159,8 +201,9 @@ test.describe('@benchmark booking pace summary: ch7 / Metro / 17-23 May 2026 / 0
     });
 
     const vintage = await readDataVintage(page.request, ROUTES.bookingPaceSummary);
-    const diffs = diffRows(baseline!.rows, actual, COMPARE);
-    expect(diffs, explainDiff(diffs, baseline!, vintage)).toEqual([]);
+    noteUncompared(baseline!, actual, testInfo);
+    const diffs = diffRows(baseline!.rows, actual, compareAgainst(baseline!));
+    expect(diffs, explainDiff(diffs, baseline!, vintage, baseURL)).toEqual([]);
 
     await bookingPaceSummary.expectNoErrors();
     diagnostics.expectClean();

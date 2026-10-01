@@ -30,6 +30,12 @@ export interface BenchmarkBaseline<Row> {
   /** The exact query sent to the API. */
   query: Record<string, string | number | boolean>;
   capturedAt: string;
+  /**
+   * The Focus instance the baseline was captured from, e.g. production
+   * (http://vsp-focus-7) when the suite runs against test. Absent on baselines
+   * captured from the suite's own target before this was recorded.
+   */
+  source?: string;
   /** Footer metadata at capture time. If it has changed, suspect the data first. */
   dataVintage: Record<string, string>;
   /**
@@ -48,6 +54,13 @@ export interface CompareOptions<Row> {
   /** Fields compared within `tolerance` (ratios, averages). */
   approx?: Array<keyof Row & string>;
   tolerance?: number;
+  /**
+   * Extra rows (on the instance under test, not in the baseline) for which this
+   * returns true are not differences. For a baseline from another instance:
+   * rows dated after its data snapshot are data it never had, not a mismatch.
+   * See `afterSnapshot`. Missing rows and value differences always count.
+   */
+  ignoreExtra?: (row: Row) => boolean;
 }
 
 /** Every difference between two row sets, one human-readable line each. */
@@ -81,7 +94,7 @@ export function diffRows<Row>(expected: Row[], actual: Row[], opts: CompareOptio
   }
   for (const act of actual) {
     const k = opts.key(act);
-    if (!expectedKeys.has(k)) diffs.push(`${k}: unexpected extra row`);
+    if (!expectedKeys.has(k) && !opts.ignoreExtra?.(act)) diffs.push(`${k}: unexpected extra row`);
   }
   return diffs;
 }
@@ -89,6 +102,25 @@ export function diffRows<Row>(expected: Row[], actual: Row[], opts: CompareOptio
 /** Keeps only the benchmarked fields, so a baseline does not churn on cosmetic ones. */
 export function pick<Row>(rows: Row[], fields: Array<keyof Row & string>): Row[] {
   return rows.map((r) => Object.fromEntries(fields.map((f) => [f, r[f]])) as Row);
+}
+
+/** Focus's own d/MM/yyyy (or dd/MM/yyyy) as a UTC timestamp; NaN if it does not parse. */
+export function parseFocusDate(dmy: string): number {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(dmy.trim());
+  return m ? Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])) : NaN;
+}
+
+/**
+ * True for a date after the baseline's data snapshot (or, if the snapshot was
+ * not recorded, after its latest row). Use as `ignoreExtra` when the baseline
+ * comes from an instance with older data than the one under test.
+ */
+export function afterSnapshot<Row>(
+  baseline: BenchmarkBaseline<Row>, dateOf: (row: Row) => string,
+): (row: Row) => boolean {
+  let cutoff = parseFocusDate(baseline.dataVintage.latestSnapshot ?? '');
+  if (Number.isNaN(cutoff)) cutoff = Math.max(...baseline.rows.map((r) => parseFocusDate(dateOf(r))));
+  return (row) => parseFocusDate(dateOf(row)) > cutoff;
 }
 
 export function baselinePath(name: string): string {
@@ -147,8 +179,13 @@ export async function readDataVintage(
 /** Turns a diff into a failure message that says whether the data moved underneath. */
 export function explainDiff<Row>(
   diffs: string[], baseline: BenchmarkBaseline<Row>, vintage?: Record<string, string>,
+  /** The instance under test, so a cross-environment comparison says so. */
+  target?: string,
 ): string {
   const lines = [`${diffs.length} difference(s) from benchmark ${baseline.name} (captured ${baseline.capturedAt})`];
+  if (baseline.source && target && baseline.source !== target) {
+    lines.push(`  NOTE: baseline is from ${baseline.source}, this run is against ${target} -- different instances, so different data vintages are expected`);
+  }
   if (vintage) {
     for (const k of ['latestSnapshot', 'importedOn', 'version'] as const) {
       if (baseline.dataVintage[k] !== vintage[k]) {
