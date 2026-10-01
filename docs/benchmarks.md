@@ -47,7 +47,8 @@ spec rather than in the baseline:
   production's.
 - Each instance builds forecast curves from its own imported data. As of
   2 Oct 2026, paid fill agrees with production on all 53 rows, while the
-  current and comparative forecast curves differ for 0-24 weeks prior. Test was
+  current forecast curve differs for 0-23 weeks prior and the comparative
+  curve for 0-24 (test lower on every one). Test was
   re-imported on 01/10/2026 and production on 23/02/2026, so that difference is
   expected to persist until the imports line up.
 
