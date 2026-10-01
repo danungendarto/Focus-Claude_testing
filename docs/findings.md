@@ -138,6 +138,19 @@ error, so the page looks broken rather than filtered.
 **Suggested fix:** either default to "All", or render an explicit empty state
 ("No recommendations match the current filters") when a filter excludes rows.
 
+**Worse since the 1 Oct 2026 re-optimise.** On test, no Manual recommendation now
+matches "Any Change" in *any* date range (checked 2026-01-04 to 2027-06-26). So
+the default view is empty in every week, including weeks with dozens of
+recommendations. The grid has no no-records template (`noRecords: false`), so
+the empty state is the column headers and nothing else.
+
+**Covered by:** `tests/known-issues/recommendations-default-filter.spec.ts`. It
+uses the first full week after the snapshot (`src/data/live-scopes.ts`) with
+every other filter at its default. It passes once the page either shows the
+rows or shows a message saying a filter is excluding them, so it accepts either
+fix above. A companion ordinary test checks that the week has recommendations
+under "All", so the spec can't fail just because the week is empty.
+
 **Found by:** converting a recorded session, 25 Aug 2026.
 
 ---
